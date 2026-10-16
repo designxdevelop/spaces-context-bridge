@@ -39,3 +39,9 @@ The button deploys infrastructure. It does not approve OAuth, install the ChatGP
 | Cron | Five-minute retries, stalled-request recovery and retention cleanup |
 
 No provider API key is stored by this relay. Page/Space scope belongs in the [worker prompt](../prompts/CHATGPT_WORKER_PROMPT.txt) and source permissions; it is not a server-side allowlist. See [operations](OPERATIONS.md) for backup and upgrades. The archived legacy migration is only for an untouched 0.1.0 schema, not a fresh bootstrap or an instruction to alter a personal deployment.
+
+## Upgrade an existing installation from shared source
+
+Keep personal deployment settings and backups outside the repository. Reuse the existing database UUID, Worker name, origin/routes and secrets; the checked-in configuration is a fresh-install template. Review and pin the approved upstream revision, test it in isolation, back up the intended database, and apply numbered migrations before deploying. Record the source revision with the Worker version so a runtime version string cannot be mistaken for proof of current source.
+
+Avoid running setup or uploading another installation's `.dev.vars` during an upgrade: that can replace the existing connection-code hashes. With an external Wrangler configuration pointing at the shared source, deploy through the pinned Wrangler CLI with `--keep-vars` and no `--secrets-file`. Preserve the cron and privacy settings. See [operations](OPERATIONS.md) for backup, migration and rollback limits. Upgrades are deliberate deployments; pulling Git does not update a live Worker automatically.

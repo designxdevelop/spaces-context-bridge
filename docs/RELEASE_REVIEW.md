@@ -1,6 +1,6 @@
 # Private release review — 0.1.5
 
-Prepared October 16, 2026. **The original cloud event workflow has passed all three synthetic bridge round trips. This remains a private release candidate.** The personal deployment, documents and client connections were not changed. Test origins, credentials, Page IDs and request receipts remain in protected local evidence outside this repository.
+Prepared October 16, 2026. **The original cloud event workflow has passed all three synthetic bridge round trips. This remains a private release candidate.** The original synthetic review left the personal deployment, documents and client connections unchanged. The maintainer later authorized the shared-source personal upgrade recorded below. Test origins, credentials, Page IDs and request receipts remain in protected local evidence outside this repository.
 
 ## Verified behavior
 
@@ -18,7 +18,7 @@ Prepared October 16, 2026. **The original cloud event workflow has passed all th
 | End-of-test cleanup | The owned temporary QA task was paused; actual Executor status returned `worker_connected: false`, confirming unsubscribe. Personal connections and deployment stayed unchanged. |
 | OpenCode config | OpenCode 2.0.22 parsed the V2 example in an isolated profile; all four config checks passed when the optional CLI check was enabled. No live OpenCode OAuth/model call or personal config migration was performed. |
 
-The first full live trio used `worker.mjs` SHA-256 `06be7501a97acf7cfdba8286a2f58e4df0c61c774c43c2e0902a09c876cf379f`. Final response cleanup and regression coverage use `66d1df9243639b37f26d122c1288931f9de971a40652de2a9487878e445eee9a`. The final source has fresh local and bootstrap-hosted checks; the final revision also automatically claimed and safely failed the trashed-output reconciliation request, without creating another Page. Earlier results do not by themselves validate later revisions.
+The first full live trio used `worker.mjs` SHA-256 `06be7501a97acf7cfdba8286a2f58e4df0c61c774c43c2e0902a09c876cf379f`. Final response cleanup and regression coverage use `66d1df9243639b37f26d122c1288931f9de971a40652de2a9487878e445eee9a`. That recorded revision had fresh local and bootstrap-hosted checks; the final revision also automatically claimed and safely failed the trashed-output reconciliation request, without creating another Page. Earlier results do not by themselves validate later revisions.
 
 ## Fixes and independent review
 
@@ -36,13 +36,23 @@ Astra 6 medium identified the concurrent hourly-limit race and encoded checkout-
 
 The updated candidate passed 112 local tests (one optional installed-CLI check skipped), the Worker build, and all 11 local workerd/D1 checks from a checkout containing spaces, percent, hash and Unicode characters. The last Opus follow-up also corrected pre-upgrade restore quarantine and renewals that started before a 410; documented owner-reviewed legacy-cap cleanup and the 24-hour recovery bound; and added restore/renewal/cleanup regressions. These post-review changes have local evidence only: the earlier hosted Page round trips and deployment checks above apply to their recorded revisions. They were not redeployed to the personal or review service during this PR review.
 
+## Latest-main installation and maintainer upgrade
+
+The reviewed `main` revision `2fd329c` was installed from a clean tracked-source checkout with `npm ci`, new synthetic credentials, a new Worker and new D1 database. Both numbered migrations and deployment completed using the documented CLI flow. All six hosted OAuth/protocol checks passed. This used an existing authenticated Cloudflare account; fresh-human signup and the public button remain unverified. The latest revision was also deployed to the isolated bootstrap instance, preserving its existing secrets. A test attempt there used a mismatched credential fixture and was not counted as passing evidence; fresh-install acceptance used that installation's own generated credentials.
+
+After explicit owner authorization, the maintainer's personal backend was upgraded to this same source with an external private deployment overlay. A protected backup was restored locally and both numbered migrations preserved every existing application-table row. The live upgrade kept the existing endpoint, database, secrets, origin and cron; the existing worker-role connection and public discovery checks passed afterwards. This is an upgrade of the shared backend, not a private code fork. Private settings and backups are outside the repository.
+
+The personal backend has no active ChatGPT `request.created` subscription; that was true before and after the upgrade. Personal background processing and an Executor cutover are therefore not claimed by the deployment evidence. The earlier three-operation synthetic workflow evidence remains the isolated review route above. The shared Worker source SHA-256 is `fa6076a335c16a72c5816e5134f14a1968b52a5323c521b90f1fe4e287ebc82a`; runtime version remains 0.1.5.
+
+MIT licensing with copyright attributed to Design X Develop was approved by the owner and is now adopted in the license and package metadata. This does not approve public visibility or launch publication.
+
 ## Remaining release gates
 
 1. **Extended acceptance:** the negative date-edit probe was rejected by automatic approval before queue submission because it exceeded the exact sentence authorization. It needs explicit owner approval. Live lost-response/lease-recovery reconciliation remains unverified; local contract tests cover the mechanics. A same-key retry is not proof of interrupted external-write recovery.
 2. **Deployment experience:** the official button needs public source, so its fresh-account binding/secrets/migration flow remains untested while this repo is private. The fresh CLI test is separate evidence. Another backend still needs an adapter.
-3. **Client and personal cutover:** live OpenCode, other T3 providers and Claude app/Code release workflows remain unverified. The demonstrated T3/Codex Executor review route does not authorize removing existing personal connections. Official Superwhisper recording extraction/selection remains untested; all transcripts used here were synthetic.
+3. **Client and personal cutover:** live OpenCode, other T3 providers and Claude app/Code release workflows remain unverified. The demonstrated T3/Codex Executor review route has not yet been repeated with the personal endpoint; existing personal connections remain in place. Official Superwhisper recording extraction/selection remains untested; all transcripts used here were synthetic.
 4. **Historical transient:** an earlier hosted refresh-revocation assertion failed immediately after deployment, then passed after the same-source redeploy. Ten more cycles passed without redeployment and subsequent bootstrap runs passed. D1 read replication was disabled. Its cause remains unknown; repeat passes do not establish the cause.
-5. **Publication decisions:** approve the proposed MIT grant/copyright holder and private vulnerability contact, review repository/history hygiene and approve public visibility and launch copy. No public publication or personal deployment migration has occurred.
+5. **Publication decisions:** finalize the private vulnerability-reporting channel, review repository/history hygiene and approve public visibility and launch copy. MIT / Design X Develop is approved. No public publication has occurred; the authorized personal backend upgrade above is complete.
 
 ## Review artifacts
 
