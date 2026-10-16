@@ -207,9 +207,9 @@ test logs. Use a fresh deployment and an owner-authorized disposable Page.
 | Config parse | CLI reads the intended file and preserves every server field; invalid-protocol control does not load that server | V2 2.0.22 checked locally; V1/T3 runtime pending |
 | Agent OAuth | Consent finishes; `bridge_status.role` is `agent` | Executor review connection returned `role: agent`; direct provider runtime checks pending |
 | Discovery | Authenticated `tools/list` contains exactly `bridge_status`, `lookup_context`, `request_document_edit`, `save_transcript`, `get_result` | Executor discovered all five agent tools; other clients pending |
-| Role denial | Agent call to `pending_requests` and agent `events/subscribe` are rejected; no worker operations exposed | Live negative check pending; use a protocol harness if the client hides unlisted tools |
-| Worker readiness | Separate ChatGPT connection has role `worker`; actual `request.created` subscription and signed callback are verified | ChatGPT worker OAuth verified; after rescan, review worker tool call verified; host subscription capability still absent |
-| Lookup/edit/ingest | Submit via the agent route, retrieve that ID with `get_result` to a terminal state, then independently verify the source or Page result | Full bridge E2E pending |
+| Role denial | Agent call to `pending_requests` and agent `events/subscribe` are rejected; no worker operations exposed | Hosted protocol harness passes; individual-client hidden-tool probes pending |
+| Worker readiness | Separate ChatGPT connection has role `worker`; actual `request.created` subscription and signed callback are verified | Native event task saved/enabled; signed verification, delivery and automatic claims verified on isolated review bridge |
+| Lookup/edit/ingest | Submit via the agent route, retrieve that ID with `get_result` to a terminal state, then independently verify the source or Page result | All three passed through this T3/Codex Executor session, with independent source/Page verification; other clients pending |
 
 `worker_connected: true` reports a current authorized subscription; it does not
 prove callback delivery or successful processing. A returned request ID or a

@@ -28,6 +28,7 @@ test('subscribe verifies the callback with a signed single-use challenge', async
   assert.ok(Date.parse(r.body.result.refreshBefore) > Date.now());
   assert.equal(calls.length, 1);
   assert.equal(calls[0].parsed.type, 'verification');
+  assert.equal(calls[0].redirect, 'manual');
   assert.match(calls[0].headers['webhook-id'], /^msg_verification_/);
   assert.ok(verifySignature(calls[0].headers, calls[0].body, webhookSecret()));
   assert.equal(calls[0].headers['X-MCP-Subscription-Id'], r.body.result.id);
@@ -47,6 +48,7 @@ test('callback verification failures map to draft CallbackEndpointError reasons'
   for (const [reply, reason] of [
     [() => new Response('{}', { status: 200 }), 'challenge_failed'],
     [() => new Response('not json', { status: 200 }), 'challenge_failed'],
+    [() => new Response('', { status: 302, headers: { location: 'https://attacker.example/private' } }), 'connection_refused'],
     [() => new Response('', { status: 404 }), 'http_4xx'],
     [() => new Response('', { status: 503 }), 'http_5xx'],
     [() => { throw new TypeError('fetch failed'); }, 'connection_refused'],
@@ -396,4 +398,116 @@ test('recovery: a dead callback costs one attempt per interval', async t => {
   }
   // Two hours of 5-minute ticks: one extra attempt per 30+ minute interval.
   assert.ok(calls.length >= 7 && calls.length <= 9, `sent ${calls.length}`);
+});
+
+test('event diagnostics distinguish verified subscriptions from rejection without logging inputs', async t => {
+  const records = [];
+  t.mock.method(console, 'info', message => records.push(JSON.parse(message)));
+  const h = await workerHarness();
+  mockCallback(t);
+  const params = subscribeParams();
+  await modernRpc(h, 'worker-access', 'events/subscribe', params);
+  await modernRpc(h, 'worker-access', 'events/unsubscribe', { name: params.name, arguments: {}, delivery: { url: params.delivery.url } });
+  await modernRpc(h, 'agent-access', 'events/subscribe', params);
+  await modernRpc(h, 'worker-access', 'events/subscribe', { ...params, arguments: null });
+  const privateUrl = 'https://sentinel-user:sentinel-password@connectors.api.openai.com/private?sentinel-query';
+  await modernRpc(h, 'worker-access', 'events/subscribe', { ...params, delivery: { ...params.delivery, url: privateUrl } });
+  assert.deepEqual(records.slice(0, 3).map(r => [r.method, r.outcome, r.code]), [
+    ['events/subscribe', 'ok', undefined], ['events/unsubscribe', 'ok', undefined], ['events/subscribe', 'rejected', -32024],
+  ]);
+  assert.deepEqual(records.slice(3).map(r => [r.validation, r.shape]), [['arguments', 'null'], ['callback_url', 'connectors_openai_host']]);
+  for (const r of records) assert.ok(Object.keys(r).every(k => ['event','method','outcome','code','reason','validation','shape','version'].includes(k)));
+  const logged = JSON.stringify(records);
+  for (const privateValue of [params.delivery.url, params.delivery.secret, 'worker-access', 'agent-access', 'worker-a', 'sentinel', privateUrl]) assert.ok(!logged.includes(privateValue));
+});
+
+test('observed OpenAI connector callbacks retain exact-host HTTPS and SSRF validation', async t => {
+  const calls = mockCallback(t);
+  const h = await workerHarness();
+  const allowed = subscribeParams({ delivery: { url: 'https://connectors.api.openai.com/v1/fixture-callback' } });
+  const accepted = await modernRpc(h, 'worker-access', 'events/subscribe', allowed);
+  assert.ok(accepted.body.result.id);
+  assert.equal(calls.length, 1);
+  assert.equal(h.count('subscriptions'), 1);
+  for (const url of ['http://connectors.api.openai.com/hook', 'https://connectors.api.openai.com:8443/hook',
+    'https://connectors.api.openai.com.attacker.example/hook', 'https://attacker.connectors.api.openai.com/hook',
+    'https://u:p@connectors.api.openai.com/hook', 'https://connectors.api.openai.com/hook#fragment', 'https://other.openai.com/hook', 'https://api.openai.com/hook']) {
+    const denied = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams({ delivery: { url } }));
+    assert.equal(denied.body.error.code, -32602);
+  }
+  assert.equal(calls.length, 1, 'invalid callbacks are never fetched');
+});
+
+test('callback transport diagnostics emit fixed categories without exception text', async t => {
+  const records = [];
+  const h = await workerHarness();
+  t.mock.method(console, 'info', message => records.push(JSON.parse(message)));
+  const privateValue = 'sentinel-private-callback?token=sentinel-secret';
+  for (const [message, name, category] of [
+    ['Illegal invocation', 'TypeError', 'receiver'], ['Redirect encountered', 'TypeError', 'redirect'],
+    ['DNS resolve failed', 'Error', 'dns'], ['TLS certificate failure', 'Error', 'tls'],
+    ['Request timed out', 'TimeoutError', 'timeout'], ['Other failure', 'Error', 'unknown'],
+  ]) {
+    t.mock.method(globalThis, 'fetch', () => { const error = new Error(message + ' ' + privateValue); error.name = name; throw error; });
+    const r = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+    assert.equal(r.body.error.code, -32027);
+    const diagnostic = records.filter(r => r.event === 'bridge_callback_failure').at(-1);
+    assert.deepEqual(diagnostic, { event: 'bridge_callback_failure', failure: category });
+  }
+  assert.ok(!JSON.stringify(records).includes('sentinel'));
+  assert.equal(h.count('subscriptions'), 0);
+});
+
+test('callback fetch normalizes the URL while preserving existing subscription identity', async t => {
+  const calls = mockCallback(t);
+  const h = await workerHarness();
+  const url = 'https://CHATGPT.COM:443/fixture';
+  const r = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams({ delivery: { url } }));
+  assert.ok(r.body.result.id);
+  assert.equal(calls[0].url, 'https://chatgpt.com/fixture');
+  assert.equal(h.db.prepare('SELECT callback FROM subscriptions').get().callback, url);
+  const removed = await modernRpc(h, 'worker-access', 'events/unsubscribe', { name: 'request.created', delivery: { url } });
+  assert.ok(removed.body.result);
+  assert.equal(h.count('subscriptions'), 0);
+});
+
+test('a real redirect verification cancels the body, logs a fixed category and stores no subscription', async t => {
+  let cancelled = false;
+  const records = [];
+  t.mock.method(console, 'info', line => records.push(JSON.parse(line)));
+  const calls = mockCallback(t, () => new Response(new ReadableStream({ cancel() { cancelled = true; } }),
+    { status: 302, headers: { location: 'https://attacker.example/private?sentinel-secret' } }));
+  const h = await workerHarness();
+  const r = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  assert.equal(r.body.error.code, -32027);
+  assert.equal(cancelled, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].redirect, 'manual');
+  assert.ok(records.some(r => r.event === 'bridge_callback_failure' && r.failure === 'redirect'));
+  assert.ok(!JSON.stringify(records).includes('sentinel'));
+  let oversizedCancelled = false;
+  t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({ cancel() { oversizedCancelled = true; } }),
+    { status: 200, headers: { 'content-length': String(256 * 1024 + 1) } }));
+  const oversized = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  assert.equal(oversized.body.error.data.reason, 'challenge_failed');
+  assert.equal(oversizedCancelled, true, 'header rejection also releases the unread body');
+  assert.equal(h.count('subscriptions'), 0);
+});
+
+test('delivery discards unused bodies and never follows or accepts a redirect', async t => {
+  let status, cancelled = 0;
+  const calls = mockCallback(t, () => new Response(new ReadableStream({ cancel() { cancelled++; } }),
+    { status, headers: { location: 'https://attacker.example/private' } }));
+  for (status of [302, 200, 410, 503]) {
+    const h = await setup();
+    await connectWorker(h);
+    await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'synthetic' }, 'key');
+    await worker.deliveries(h.env);
+    const row = h.db.prepare('SELECT status,attempts FROM deliveries').get();
+    assert.equal(row.status, status === 200 ? 'delivered' : status === 410 ? 'gone' : 'pending');
+    assert.equal(row.attempts, [302, 503].includes(status) ? 1 : 0);
+  }
+  assert.equal(cancelled, 4);
+  assert.equal(calls.length, 4, 'no Location target was fetched');
+  assert.ok(calls.every(c => c.url === CALLBACK && c.redirect === 'manual'));
 });

@@ -133,7 +133,7 @@ export function mockCallback(t, reply = body => {
 }) {
   const calls = [];
   t.mock.method(globalThis, 'fetch', async (url, init) => {
-    calls.push({ url, headers: init.headers, body: init.body, parsed: JSON.parse(init.body) });
+    calls.push({ url, headers: init.headers, body: init.body, parsed: JSON.parse(init.body), redirect: init.redirect });
     return reply(init.body, init.headers);
   });
   return calls;

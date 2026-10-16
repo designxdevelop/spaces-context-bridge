@@ -151,12 +151,13 @@ function redirectAllowed(value) {
   } catch { return false; }
 }
 
-// Webhook callbacks may only target ChatGPT. This is the SSRF boundary for deliveries.
+// ChatGPT may deliver through its web origin or the OpenAI connector callback origin.
+// Keep the connector host exact (no *.openai.com wildcard). This is the SSRF boundary.
 function callbackAllowed(value) {
   try {
     const u = new URL(value);
     return u.protocol === 'https:' && !u.username && !u.password && !u.hash && (!u.port || u.port === '443')
-      && (u.hostname === 'chatgpt.com' || u.hostname.endsWith('.chatgpt.com'));
+      && (u.hostname === 'chatgpt.com' || u.hostname.endsWith('.chatgpt.com') || u.hostname === 'connectors.api.openai.com');
   } catch { return false; }
 }
 
@@ -586,9 +587,17 @@ const eventDefinitions = [{
   payloadSchema: objectSchema({ request_id: stringProp, kind: { type: 'string', enum: ['lookup', 'edit', 'ingest'] }, recovery: { type: 'boolean' } }, ['request_id', 'kind']),
 }];
 
+// Release unused outbound bodies so failed or empty callbacks cannot stall subrequests.
+async function discardResponse(response) {
+  try { await response.body?.cancel(); } catch { /* Already closed or cancelled. */ }
+}
+
 // Standard Webhooks signing. During secret rotation both signatures are sent.
 async function signedFetch(subscription, event, fetcher = fetch) {
   assert(callbackAllowed(subscription.callback), 'Callback host is not allowed');
+  // Normalize the fetch target with the same URL parser used by validation.
+  // Keep stored URL/identity unchanged so existing subscription IDs remain valid.
+  const callback = new URL(subscription.callback).href;
   const raw = JSON.stringify(event);
   const id = event.eventId || `msg_${event.type || 'control'}_${crypto.randomUUID()}`;
   const timestamp = Math.floor(now() / SECOND).toString();
@@ -599,11 +608,17 @@ async function signedFetch(subscription, event, fetcher = fetch) {
     const key = await crypto.subtle.importKey('raw', Uint8Array.from(atob(secret.slice(6)), c => c.charCodeAt(0)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     signatures.push('v1,' + b64(await crypto.subtle.sign('HMAC', key, encoder.encode(`${id}.${timestamp}.${raw}`))));
   }
-  return fetcher(subscription.callback, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(DELIVERY_TIMEOUT),
+  // workerd rejects redirect:'error'; manual plus explicit rejection never follows one.
+  const response = await fetcher(callback, {
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(DELIVERY_TIMEOUT),
     headers: { 'content-type': 'application/json', 'webhook-id': id, 'webhook-timestamp': timestamp, 'webhook-signature': signatures.join(' '), 'X-MCP-Subscription-Id': subscription.id },
     body: raw,
   });
+  if (response.status >= 300 && response.status < 400) {
+    await discardResponse(response);
+    throw new TypeError('Callback redirects are forbidden');
+  }
+  return response;
 }
 
 function validWebhookSecret(secret) {
@@ -622,11 +637,24 @@ async function verifyCallback(subscription) {
   try {
     response = await signedFetch(subscription, { type: 'verification', challenge });
   } catch (e) {
+    // Fixed categories only; exception messages can contain private callback URLs.
+    const failure = /illegal invocation|invalid receiver/i.test(e?.message || '') ? 'receiver'
+      : /redirect/i.test(e?.message || '') ? 'redirect'
+      : /dns|resolve/i.test(e?.message || '') ? 'dns'
+      : /tls|ssl|certificate/i.test(e?.message || '') ? 'tls'
+      : e?.name === 'TimeoutError' ? 'timeout' : 'unknown';
+    console.info(JSON.stringify({ event: 'bridge_callback_failure', failure }));
     throw failed(e?.name === 'TimeoutError' ? 'timeout' : 'connection_refused');
   }
-  if (!response.ok) throw failed(response.status < 500 ? 'http_4xx' : 'http_5xx');
+  if (!response.ok) {
+    await discardResponse(response);
+    throw failed(response.status < 500 ? 'http_4xx' : 'http_5xx');
+  }
   let echoed;
-  try { echoed = JSON.parse(await readBody(response)).challenge; } catch { echoed = null; }
+  try { echoed = JSON.parse(await readBody(response)).challenge; } catch {
+    await discardResponse(response);
+    echoed = null;
+  }
   if (typeof echoed !== 'string' || !same(echoed, challenge)) throw failed('challenge_failed');
 }
 
@@ -692,6 +720,7 @@ async function deliveries(env) {
       const response = await signedFetch(
         { id: d.sid, callback: d.callback, secret: d.secret, previous_secret: d.previous_secret, rotate_until: d.rotate_until },
         { eventId: 'evt_' + d.id, name: EVENT_NAME, timestamp: new Date(d.created).toISOString(), data: { request_id: d.request, kind: d.kind, ...(d.id.startsWith(RECOVERY_PREFIX) ? { recovery: true } : {}) }, cursor: null });
+      await discardResponse(response);
       if (response.ok) {
         await sql(env, "UPDATE deliveries SET status='delivered' WHERE id=?", d.id).run();
         continue;
@@ -797,6 +826,34 @@ function protocolCheck(request, packet) {
 
 const validId = id => typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id));
 
+// Only fixed method/outcome codes: never log params, callback URLs, secrets or RPC IDs.
+function eventDiagnostic(method, error, params) {
+  if (!['events/list', 'events/subscribe', 'events/unsubscribe'].includes(method)) return;
+  const reason = ['timeout', 'connection_refused', 'http_4xx', 'http_5xx', 'challenge_failed'].includes(error?.data?.reason)
+    ? error.data.reason : undefined;
+  const validation = {
+    'Invalid params': 'params',
+    'This event takes no arguments': 'arguments',
+    'A ChatGPT HTTPS callback URL is required': 'callback_url',
+    'delivery.secret must be whsec_ followed by 24-64 base64 bytes': 'signing_secret',
+  }[error?.message];
+  let shape;
+  if (validation === 'arguments') shape = params?.arguments === null ? 'null'
+    : Array.isArray(params?.arguments) ? 'array' : isObject(params?.arguments) ? 'nonempty_object' : 'scalar';
+  if (validation === 'callback_url') {
+    shape = 'missing';
+    if (typeof params?.delivery?.url === 'string') {
+      try {
+        const host = new URL(params.delivery.url).hostname;
+        shape = host === 'connectors.api.openai.com' ? 'connectors_openai_host' : host === 'chatgpt.com' || host.endsWith('.chatgpt.com') ? 'chatgpt_host'
+          : host === 'openai.com' || host.endsWith('.openai.com') ? 'openai_host' : 'other_host';
+      } catch { shape = 'invalid_url'; }
+    }
+  }
+  console.info(JSON.stringify({ event: 'bridge_event_rpc', method, outcome: error ? 'rejected' : 'ok',
+    ...(error ? { code: error.rpc || -32602, ...(reason ? { reason } : {}), ...(validation ? { validation } : {}), ...(shape ? { shape } : {}) } : {}), version: VERSION }));
+}
+
 async function mcp(request, env, ctx) {
   // 2026-07-28 has no GET stream or sessions; older clients probing them get 405.
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, { allow: 'POST' });
@@ -854,12 +911,14 @@ async function mcp(request, env, ctx) {
       ctx.waitUntil(deliveries(env));
     } else if (['events/list', 'events/subscribe', 'events/unsubscribe'].includes(method)) {
       result = await events(env, principal, method, params);
+      eventDiagnostic(method);
     } else {
       return rpcError(packet.id, -32601, 'Method not found', protocol.modern ? 404 : 200);
     }
     return json({ jsonrpc: '2.0', id: packet.id, result: { resultType: 'complete', ...result, _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } } });
   } catch (e) {
     if (!(e instanceof InputError)) throw e;
+    eventDiagnostic(method, e, params);
     return rpcError(packet.id, e.rpc || -32602, e.message, 200, e.data);
   }
 }

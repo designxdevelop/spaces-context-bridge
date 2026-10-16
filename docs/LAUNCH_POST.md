@@ -1,14 +1,14 @@
 # Launch post — DRAFT, NOT APPROVED FOR PUBLICATION
 
-Prepared October 15, 2026. Do not post until the release owner approves licensing, publication and the final acceptance evidence. The draft below describes an experiment, not a completed release. Replace its status only with verified results; do not invent a launch date or demo.
+Prepared October 15, 2026. Do not post until the release owner approves licensing, publication and the final acceptance evidence. The draft describes demonstrated synthetic flows in a private release candidate. Update it only with verified results; do not invent a launch date or demo.
 
 ## Draft
 
-Superwhisper’s new Meetings release made me rethink my Granola setup. I want ChatGPT Space to hold the notes—and my coding agents to request context through a bridge I deploy in my own Cloudflare account.
+Superwhisper’s new Meetings release made me rethink Granola: I want ChatGPT Space to hold my notes, with coding agents able to request sourced context and Page edits.
 
-I’m building Spaces Context Bridge for that workflow, with direct MCP or optional Executor connections for T3 Code, OpenCode and Claude.
+I’m building Spaces Context Bridge for that workflow. Synthetic lookups, bounded edits and transcript-to-Page saves now work end to end through Executor and a ChatGPT cloud event task. No local worker needed for that route.
 
-It’s still a private release candidate. Hosted sign-in checks pass; ChatGPT event processing and real Page round trips are still being verified. No automatic transcript sync.
+It’s still a private release candidate, with guides for T3 Code, OpenCode and Claude. Direct MCP connections remain an option. No automatic transcript sync—and more client testing before release.
 
 ## Fact check
 

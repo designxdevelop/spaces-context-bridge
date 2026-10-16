@@ -80,7 +80,7 @@ test('rotation sends signatures verifiable with old and new keys', async () => {
     const sig = createHmac('sha256', key).update(h['webhook-id'] + '.' + h['webhook-timestamp'] + '.' + captured.body).digest('base64');
     assert.ok(h['webhook-signature'].split(' ').includes('v1,' + sig));
   }
-  assert.equal(captured.redirect, 'error');
+  assert.equal(captured.redirect, 'manual');
   await assert.rejects(mod.signedFetch({ callback: 'https://evil.example/callback' }, {}), /not allowed/);
 });
 

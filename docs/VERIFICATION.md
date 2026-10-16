@@ -1,6 +1,6 @@
 # Verification gates
 
-See [release review](RELEASE_REVIEW.md) for the current evidence. Hosted OAuth/protocol checks and a clean CLI deployment have been exercised; ChatGPT event activation and actual Page round trips remain separate gates. Historical authentication success is not a release acceptance result. Use fresh resources, a disposable Space/Page, and synthetic text. Keep evidence to request IDs, redacted statuses, timings, versions, and checksums; never publish tokens, callback secrets, transcripts, or private Page links.
+See [release review](RELEASE_REVIEW.md) for the current evidence. Hosted OAuth/protocol checks, a clean CLI deployment, native ChatGPT event activation and all three synthetic Page round trips have passed on isolated resources. Each new deployment/client still needs its own acceptance run. Historical authentication success is not a release acceptance result. Use fresh resources, a disposable Space/Page, and synthetic text. Keep evidence to request IDs, redacted statuses, timings, versions, and checksums; never publish tokens, callback secrets, transcripts, or private Page links.
 
 ## Local evidence
 
@@ -18,4 +18,4 @@ A direct Pages edit skips the relay and proves only that Pages tools work. A web
 
 ## Release evidence still required
 
-The final review must contain fresh deployment evidence, actual worker activation, all three bridge-mediated operations, independent Page verification, owner-scope refusal, recovery behavior, and approved license/contact details. No release announcement should describe this path as working before those gates are cleared.
+The final review must contain fresh deployment evidence, actual worker activation, all three bridge-mediated operations, independent Page verification, owner-scope refusal, recovery behavior, and approved license/contact details. Describe only the demonstrated client, synthetic scope and results; retain the remaining recovery, client and deployment limitations.

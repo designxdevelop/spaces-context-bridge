@@ -1,12 +1,12 @@
 # Spaces Context Bridge
 
-**0.1.5 — private release candidate; end-to-end verification pending.** A self-hosted, single-owner MCP relay for asking a ChatGPT Work Cloud worker to look up context, edit an authorized Page, or save a selected transcript as a Page.
+**0.1.5 — private release candidate; synthetic end-to-end workflow verified.** A self-hosted, single-owner MCP relay for asking a ChatGPT Work Cloud worker to look up context, edit an authorized Page, or save a selected transcript as a Page.
 
 The bridge has **no direct Spaces access**. It stores requests in Cloudflare D1; a separately authorized ChatGPT worker uses the owner's available tools. OAuth authentication is not worker-event activation. A queued request is not a completed operation. There is no automatic transcript sync.
 
 ## Release status
 
-Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and an authenticated agent tool call through Executor have passed. ChatGPT worker OAuth succeeded, but the tested Work chat did not expose the host event-subscription mechanism, even after a rescan restored the correct review plugin tools. Worker activation and all three bridge-mediated Page operations remain blocked. Direct Pages-tool experiments do not count as bridge tests. See [release evidence and blockers](docs/RELEASE_REVIEW.md) before relying on this project. MIT is proposed, pending owner review; see [LICENSE](LICENSE).
+Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and all three synthetic bridge operations through **T3/Codex → Executor → bridge → ChatGPT cloud event task → actual Spaces Pages** have passed. Lookup sources, the bounded Page edit and the verbatim transcript Page were independently verified. No local daemon was needed for this cloud route. This does not establish production readiness, every client, automatic transcript sync or the public deployment button. See [evidence and remaining gates](docs/RELEASE_REVIEW.md). MIT is proposed, pending owner review; see [LICENSE](LICENSE).
 
 ## What it is intended to do
 
@@ -17,7 +17,11 @@ Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and an authentica
 
 Claude app and Claude Code are agent clients. See [T3 Code, OpenCode CLI, and optional Executor](docs/CLIENTS_T3_OPENCODE_EXECUTOR.md) for additional setups. Public users can keep direct individual-client connections; Executor is optional. For the release owner’s personal setup, consolidate agent access into Executor only after verification. Keep the ChatGPT worker direct because it needs separate worker permissions and events. The ChatGPT worker is a different role with queue-processing tools. Official Superwhisper MCP runs locally and is separate from this remote relay. “Private” means owner-operated and access-controlled, not local-only processing or end-to-end encryption.
 
-## Deploy your own
+## Choose your setup
+
+Use the [setup prompt for your chosen agent or MCP host](docs/SETUP_WITH_AGENT.md) to connect an existing endpoint or plan a deployment on your chosen backend. Cloudflare Worker + D1 is the currently implemented backend; other hosts require adapters and acceptance testing. An MCP client/router is separate from the backend server. The original ChatGPT-mediated Spaces lookup/edit/save workflow stays the same.
+
+## Cloudflare deployment option
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/designxdevelop/spaces-context-bridge)
 

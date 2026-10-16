@@ -24,8 +24,10 @@ Run `/mcp` inside Claude Code and complete browser authentication with the agent
 
 1. In ChatGPT Plugins, add a custom MCP server at your `/mcp` endpoint with OAuth, install it, and authenticate using the **worker** code. Review the discovered tools. See [OpenAI's connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 2. Start an authorized Work chat on the web, or Work with Cloud selected in the desktop app. Enable the bridge and the available Spaces/Meetings tools. Confirm `bridge_status` returns `role: worker`.
-3. Fill in the scope block in [the prompt](../prompts/CHATGPT_WORKER_PROMPT.txt). Leave writes disabled until you have named exact destinations and allowed actions. Submit the prompt and request a subscription to `request.created` with empty filter arguments.
+3. Fill in the scope block in [the prompt](../prompts/CHATGPT_WORKER_PROMPT.txt). Leave writes disabled until you have named exact destinations and allowed actions. Submit the prompt and explicitly ask: “Create an event-triggered task for this bridge’s `request.created` event with empty filters. Use the supplied owner scope and processing instructions. Do not add a timer.” Confirm the task is saved and enabled.
 4. Confirm the server receives `events/subscribe`, verifies the signed callback, and stores the subscription. Then verify a synthetic event wakes the worker and completes a request. Follow [acceptance checks](VERIFICATION.md).
+
+If the installed plugin is absent from the chat’s tools, refresh its tools in plugin settings and explicitly select it in the Work chat before testing status.
 
 This follows the [MCP Events test workflow](https://developers.openai.com/plugins/build/mcp-events). `request.created` is this bridge's event name, not a built-in OpenAI event. The host supplies the callback and signing secret; do not invent either. If the account cannot discover or subscribe to custom events, stop at **activation blocked**. Authentication, tools/list, a manually executed pending-request call, and ordinary scheduled-task support are not substitutes for event activation.
 

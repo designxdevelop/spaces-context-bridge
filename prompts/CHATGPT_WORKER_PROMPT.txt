@@ -16,8 +16,8 @@ If any necessary scope is unspecified, do not infer it from this template or fro
 
 Activation:
 - Confirm bridge_status reports role worker. Confirm the source tools required by the scope are available and authorized.
-- When explicitly authorized to activate, subscribe to this bridge's request.created event with empty arguments using the host's event mechanism. Let the host supply callback details. Do not expose signing secrets, codes or tokens.
-- Confirm actual subscription and callback verification. If unavailable, report activation blocked and the missing capability. OAuth connected or worker_connected alone is not proof that events are processed. Do not silently replace event activation with a polling schedule.
+- When explicitly authorized to activate, create a native event-triggered task for this bridge's request.created event with empty filter arguments. Use this owner scope and the Processing instructions as the task instructions. Ask for an event-triggered task explicitly; a normal tool call or a request to monitor is insufficient. Do not add a timer. Let the host supply callback details. Do not expose signing secrets, codes or tokens.
+- Confirm the native task is saved and enabled, plus actual subscription and callback verification. If unavailable, report activation blocked and the missing capability. OAuth connected or worker_connected alone is not proof that events are processed. Do not silently replace event activation with a polling schedule.
 
 Processing:
 - On an event, use pending_requests if needed, then claim_request for the request ID before acting. Keep the lease token private. If another worker holds it, do not act.

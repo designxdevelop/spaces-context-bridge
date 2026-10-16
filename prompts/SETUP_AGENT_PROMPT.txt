@@ -1,0 +1,52 @@
+Set up Spaces Context Bridge with my chosen agent and MCP host.
+
+CHOICES — use my existing answers; ask only for missing choices:
+Repository/checkout: [repo URL or local checkout]
+Requester clients: [Claude / Codex / OpenCode / T3 provider / another MCP client]
+Connection: [direct / existing Executor / another router]
+Backend: [existing bridge URL / Cloudflare / named alternative host]
+ChatGPT processor: [Work on web / desktop Work with Cloud]
+Owner-approved read sources, editable Pages and transcript destination Spaces: [exact scope or NONE]
+
+OUTCOME
+Other agents can request sourced context, bounded edits to actual ChatGPT Spaces Pages, and synthetic transcript saves. ChatGPT performs those actions through its authorized tools and returns verified results through the bridge. Keep that workflow. The backend holds requests/results; it has no direct Spaces access. Do not substitute a copied-note database, cache or mirror.
+
+OPERATING RULES
+Work within the scope I have authorized and complete reversible setup autonomously. Preserve existing deployments, data and MCP entries; merge one entry rather than replace configuration. Request a missing decision or approval only when needed for an action outside that scope. I handle human sign-in and consent. Never put codes, tokens, OAuth state, webhook secrets or transcript contents in chat, command arguments, shared config or logs. Deliver protected local credential files by path, not contents.
+
+1. INSPECT AND CHOOSE A PATH
+Read repository instructions and the current README, deployment guide, client guide, worker prompt and release evidence. Inspect the chosen client's actual version, environment/config directory and available tools. Distinguish:
+- requester: agent-role client that submits work;
+- router: optional Executor or other MCP host that forwards agent calls;
+- backend: the durable authenticated relay server;
+- processor: ChatGPT's direct worker-role connection and event task.
+An MCP client/router alone does not host the backend or gain Spaces access.
+The shipped backend currently uses Cloudflare Worker + D1. Cloudflare is an option, not my presumed choice. An alternative host needs an implementation adapter and its own tests; a setup prompt does not make the existing source portable.
+
+Existing endpoint: inspect /health and OAuth discovery; deploy nothing.
+Cloudflare selected: use the documented isolated setup/deploy flow and pinned tools, with unique resource names, explicit account selection, migrations and protected secrets. Preserve any existing personal deployment.
+Other backend selected: inspect its documented runtime, storage and background-task support. Produce a concrete adapter plan. Implement only within my authorized scope; otherwise obtain approval for that plan. Preserve HTTPS MCP, OAuth/PKCE and consent, separate roles, durable atomic queue/leases/idempotency, signed webhook verification/delivery, recovery/cleanup, backups and safe diagnostics. Never present an unimplemented or untested adapter as supported. Do not silently fall back to Cloudflare.
+
+2. CONNECT REQUESTERS
+Use the client's current official setup and this repository's version-matched examples. Reuse existing connections. For a router, discover its schemas and use per-user agent OAuth; a saved connection or OAuth redirect is not a verified call.
+Have me finish OAuth on the correct origin using the AGENT code privately. Call bridge_status through each intended route; verify role=agent and record the response. Discover the five agent tools. Agent access must not expose worker claim/completion tools. Keep the WORKER code and grant out of requesters and routers.
+
+3. ACTIVATE CHATGPT PROCESSING
+Connect ChatGPT directly to the backend with the separate WORKER code; I complete sign-in and consent. Confirm the selected review/owner connector's actual bridge_status returns role=worker. Fill the owner-scope block in prompts/CHATGPT_WORKER_PROMPT.txt using only my authorized sources/actions. Unspecified scope stays NONE. Keep its processing, reconciliation and verification rules intact.
+Ask in the supported Work chat:
+“Create an event-triggered task for this selected bridge. Whenever request.created occurs, claim and process the request within the owner scope above, then complete it with verified sources or an edit/save receipt. Use empty filters and the host's native event subscription; no time schedule.”
+The host must supply the callback and signing secret. Never invent or manually seed them. Confirm server/discover and events/list, actual events/subscribe, signed callback verification and a stored subscription. bridge_status worker_connected=true is readiness, not proof of processing.
+If tools/events changed, rescan the plugin and follow official reconnect/new-conversation guidance. If host task creation is absent, check the supported Work surface and the workspace's event-triggered-task permission. Report the exact missing capability and diagnostics; do not change policy or reinstall/re-consent blindly.
+A timer, manual pending_requests call, direct Pages operation or fabricated subscription cannot prove event activation. Do not silently replace the event task with polling.
+
+4. VERIFY THE ORIGINAL WORKFLOW
+Use disposable Pages/Space and synthetic text with an explicit bounded owner scope. Submit through the actual chosen requester/router, retrieve each original request ID with get_result, and independently inspect the resulting Pages:
+- lookup: return a unique synthetic fact and its real source;
+- edit: change one authorized sentence on the exact Page, preserving other text;
+- ingest: save a synthetic transcript in the authorized Space with a stable source_id/key; retry identically and verify one Page;
+- boundaries: refuse an out-of-scope edit and another client's result access;
+- recovery: reconcile a lost/expired attempt before repeating any external write.
+Source inspection can use independent Pages tools, but the tested operation must originate through the bridge. A queued ID, webhook 2xx or unverified completion is not success. Polling get_result for an existing request is allowed; never submit a fresh key after a timeout.
+
+REPORT
+Lead with: activation verified / blocked, then each operation verified / failed / not run. Include sanitized client/runtime versions, chosen backend, changed config entries, test evidence and source/receipt links appropriate to this private session. Preserve personal paths and source links outside shared docs. Name remaining blockers and the smallest necessary human action. Keep all public-release and publication decisions for my final review.
