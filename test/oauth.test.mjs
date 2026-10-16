@@ -349,3 +349,66 @@ test('concurrent rotation of one refresh token fails closed: no grant survives',
   assert.equal((await refresh(h, winner.refresh_token, clientId)).status, 400);
   assert.equal(h.count('tokens', 'client=?', clientId), 0);
 });
+
+const DAY = 24 * 60 * 60 * 1000;
+
+test('owner consent and successful refresh renew client activity; invalid refresh does not', async t => {
+  const clock = useClock(t);
+  const h = await setup();
+  const { body } = await registerClient(h);
+  assert.equal(h.count('client_activity'), 0);
+  clock.advance(1000);
+  assert.equal((await submit(h, await consentForm(h, body.client_id))).status, 302);
+  assert.equal(h.db.prepare('SELECT last_used FROM client_activity').get().last_used, clock.now);
+  const { tokens } = await oauthFlow(h, { clientId: body.client_id });
+  clock.advance(DAY);
+  assert.equal((await refresh(h, tokens.refresh_token, body.client_id)).status, 200);
+  const used = clock.now;
+  assert.equal(h.db.prepare('SELECT last_used FROM client_activity').get().last_used, used);
+  clock.advance(DAY);
+  assert.equal((await refresh(h, 'forged', body.client_id)).status, 400);
+  assert.equal(h.db.prepare('SELECT last_used FROM client_activity').get().last_used, used);
+});
+
+test('old authorized registration survives revocation and replay cleanup and reconnects with its cached ID', async t => {
+  const clock = useClock(t);
+  for (const revoke of [true, false]) {
+    const h = await setup();
+    const { clientId, tokens } = await oauthFlow(h);
+    clock.advance(8 * DAY);
+    const next = await (await refresh(h, tokens.refresh_token, clientId)).json();
+    if (revoke) await h.fetch('/revoke', form({ token: next.refresh_token, client_id: clientId }));
+    else assert.equal((await refresh(h, tokens.refresh_token, clientId)).status, 400);
+    await worker.cleanup(h.env);
+    assert.equal(h.count('clients', 'id=?', clientId), 1);
+    assert.equal((await oauthFlow(h, { clientId })).status, 200);
+  }
+});
+
+test('cleanup retires only inactive tokenless registrations after their applicable grace period', async t => {
+  const clock = useClock(t);
+  const h = await setup();
+  const insert = h.db.prepare('INSERT INTO clients VALUES(?,?,?,?)');
+  for (const [id, age] of [['unused-old', 2 * 3600000], ['unused-new', 1000], ['authorized-old', 38 * DAY], ['authorized-recent', 8 * DAY], ['live-token', 38 * DAY]]) {
+    insert.run(id, id, '[]', clock.now - age);
+    if (id.startsWith('authorized') || id === 'live-token') h.db.prepare('INSERT INTO client_activity VALUES(?,?)').run(id, clock.now - age);
+  }
+  h.db.prepare("INSERT INTO tokens VALUES('live','live-token','agent',?,'refresh')").run(clock.now + DAY);
+  await worker.cleanup(h.env);
+  assert.deepEqual(h.db.prepare('SELECT id FROM clients ORDER BY id').all().map(r => r.id), ['authorized-recent', 'live-token', 'unused-new']);
+  assert.equal(h.count('client_activity', "client='authorized-old'"), 0);
+});
+
+test('registration at capacity evicts only the oldest never-authorized client and concurrent inserts stay bounded', async () => {
+  const h = await setup();
+  const now = Date.now();
+  const insert = h.db.prepare('INSERT INTO clients VALUES(?,?,?,?)');
+  insert.run('cached-owner', 'Owner', '[]', now - 8 * DAY);
+  h.db.prepare("INSERT INTO client_activity VALUES('cached-owner',?)").run(now);
+  for (let i = 0; i < 999; i++) insert.run('unused-' + i, 'Unused', '[]', now - 1000 + i);
+  const results = await Promise.all([1, 2, 3].map(() => registerClient(h)));
+  assert.ok(results.every(r => r.status === 201));
+  assert.equal(h.count('clients'), 1000);
+  assert.equal(h.count('clients', "id='cached-owner'"), 1);
+  for (let i = 0; i < 3; i++) assert.equal(h.count('clients', 'id=?', 'unused-' + i), 0);
+});

@@ -25,6 +25,8 @@ const CODE_TTL = 5 * MINUTE;
 const CONSENT_TTL = 10 * MINUTE;
 const LEASE_TTL = 15 * MINUTE;
 const RETENTION = 7 * DAY;
+const UNUSED_CLIENT_TTL = HOUR;
+const CLIENT_RETENTION = REFRESH_TTL + RETENTION;
 const SUBSCRIPTION_MAX_TTL = 7 * DAY;
 const SECRET_ROTATION_GRACE = 5 * MINUTE;
 const DELIVERY_CLAIM = 2 * MINUTE;
@@ -183,19 +185,26 @@ const tokenResponse = (access, refresh, role, base) =>
 // a later replay is recognised). Exactly one concurrent caller wins; the others get null.
 async function issueTokens(env, clientId, role, refreshHash, base) {
   const access = random(), refresh = random(), stamp = now();
+  const accessHash = await digest(access);
+  // Only a successfully minted access token extends registration retention.
+  const activity = sql(env, `INSERT INTO client_activity(client,last_used)
+    SELECT ?,? WHERE EXISTS(SELECT 1 FROM tokens WHERE hash=?)
+    ON CONFLICT(client) DO UPDATE SET last_used=MAX(client_activity.last_used,excluded.last_used)`, clientId, stamp, accessHash);
   if (refreshHash) {
     const results = await env.DB.batch([
       sql(env, "INSERT INTO tokens SELECT ?,client,role,?,'access' FROM tokens WHERE hash=? AND kind='refresh' AND client=? AND expires>?",
-        await digest(access), stamp + ACCESS_TTL, refreshHash, clientId, stamp),
+        accessHash, stamp + ACCESS_TTL, refreshHash, clientId, stamp),
       sql(env, "INSERT INTO tokens SELECT ?,client,role,?,'refresh' FROM tokens WHERE hash=? AND kind='refresh' AND client=? AND expires>?",
         await digest(refresh), stamp + REFRESH_TTL, refreshHash, clientId, stamp),
       sql(env, "UPDATE tokens SET kind='refresh_used' WHERE hash=? AND kind='refresh' AND client=? AND expires>?", refreshHash, clientId, stamp),
+      activity,
     ]);
     if (changes(results[2]) !== 1) return null;
   } else {
     await env.DB.batch([
-      sql(env, 'INSERT INTO tokens VALUES(?,?,?,?,?)', await digest(access), clientId, role, stamp + ACCESS_TTL, 'access'),
+      sql(env, 'INSERT INTO tokens VALUES(?,?,?,?,?)', accessHash, clientId, role, stamp + ACCESS_TTL, 'access'),
       sql(env, 'INSERT INTO tokens VALUES(?,?,?,?,?)', await digest(refresh), clientId, role, stamp + REFRESH_TTL, 'refresh'),
+      activity,
     ]);
   }
   return tokenResponse(access, refresh, role, base);
@@ -224,12 +233,18 @@ function authorizationServerMetadata(base) {
   };
 }
 
+// Keep recently authorized cached registrations through revocation/reconnect. Anonymous
+// registrations have a shorter lifetime and may be evicted at capacity. Live grants win.
+const RETIRED_CLIENT = `(
+  (NOT EXISTS(SELECT 1 FROM client_activity a WHERE a.client=clients.id) AND created<?)
+  OR EXISTS(SELECT 1 FROM client_activity a WHERE a.client=clients.id AND a.last_used<?)
+) AND id NOT IN (SELECT client FROM tokens)`;
+const retireClients = (env, stamp) => sql(env, 'DELETE FROM clients WHERE ' + RETIRED_CLIENT, stamp - UNUSED_CLIENT_TTL, stamp - CLIENT_RETENTION);
+
 // RFC 7591 dynamic client registration.
 async function register(request, env) {
   assert(request.method === 'POST', 'Method not allowed', 405);
   await rateLimit(request, env, 'register', 20, HOUR);
-  const count = await one(env, 'SELECT COUNT(*) AS n FROM clients');
-  assert(count.n < MAX_CLIENTS, 'Client registration limit reached', 429);
   let data;
   try { data = JSON.parse(await readBody(request)); } catch (e) {
     if (e instanceof InputError) throw e;
@@ -249,7 +264,18 @@ async function register(request, env) {
   assert(data.application_type === undefined || ['native', 'web'].includes(data.application_type), 'Unsupported application_type', 400, invalid);
   const id = crypto.randomUUID();
   const name = typeof data.client_name === 'string' && data.client_name.trim() ? data.client_name.trim().slice(0, 100) : 'MCP client';
-  await sql(env, 'INSERT INTO clients VALUES(?,?,?,?)', id, name, JSON.stringify(data.redirect_uris), now()).run();
+  const stamp = now();
+  // D1 batches are transactional: capacity checks, eviction and insertion serialize.
+  const results = await env.DB.batch([
+    retireClients(env, stamp),
+    sql(env, `DELETE FROM clients WHERE id IN (SELECT id FROM clients
+      WHERE NOT EXISTS(SELECT 1 FROM client_activity a WHERE a.client=clients.id)
+      AND id NOT IN (SELECT client FROM tokens) ORDER BY created,id LIMIT 1)
+      AND (SELECT COUNT(*) FROM clients)>=?`, MAX_CLIENTS),
+    sql(env, `INSERT INTO clients(id,name,redirects,created) SELECT ?,?,?,?
+      WHERE (SELECT COUNT(*) FROM clients)<?`, id, name, JSON.stringify(data.redirect_uris), stamp, MAX_CLIENTS),
+  ]);
+  assert(changes(results[2]) === 1, 'Client registration limit reached', 429);
   return json({
     client_id: id, client_id_issued_at: Math.floor(now() / SECOND), client_name: name, redirect_uris: data.redirect_uris,
     token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'],
@@ -334,6 +360,12 @@ async function authorizeSubmit(request, env, base) {
   assert(await one(env, 'DELETE FROM consents WHERE id=? RETURNING id', consent.id), 'Authorization already used', 403);
 
   const pending = JSON.parse(consent.data), code = random();
+  // Reserve this registration only after owner consent, before an anonymous DCR
+  // burst can evict it while the host exchanges the authorization code.
+  const touched = await sql(env, `INSERT INTO client_activity(client,last_used)
+    SELECT id,? FROM clients WHERE id=?
+    ON CONFLICT(client) DO UPDATE SET last_used=MAX(client_activity.last_used,excluded.last_used)`, now(), pending.client_id).run();
+  assert(changes(touched) === 1, 'Registration expired; remove and reconnect this client', 400);
   await sql(env, 'INSERT INTO codes VALUES(?,?,?,?,?,?)', await digest(code), pending.client_id, pending.redirect_uri,
     pending.code_challenge, role, now() + CODE_TTL).run();
   const redirect = new URL(pending.redirect_uri);
@@ -494,19 +526,22 @@ async function queue(env, principal, kind, payload, idempotencyKey) {
     assert(sameInput(existing), 'Idempotency key reused with different input', 409);
     return { request_id: existing.id, status: existing.status };
   }
-  const recent = await one(env, 'SELECT COUNT(*) AS n FROM requests WHERE client=? AND created>?', principal.client, now() - HOUR);
-  assert(recent.n < HOURLY_REQUEST_LIMIT, 'Hourly request limit reached', 429);
   assert(await workerConnected(env), 'No ChatGPT worker is connected. Connect the bridge to ChatGPT and subscribe to request.created first.', 409);
 
   const stamp = now();
   await env.DB.batch([
-    sql(env, 'INSERT OR IGNORE INTO requests(id,client,idem,kind,payload,status,created,updated) VALUES(?,?,?,?,?,?,?,?)',
-      crypto.randomUUID(), principal.client, idempotencyKey, kind, body, 'queued', stamp, stamp),
+    // Check and consume the budget in the insertion statement: concurrent isolates
+    // cannot all pass a stale count. Same-key retries still resolve to the saved row.
+    sql(env, `INSERT OR IGNORE INTO requests(id,client,idem,kind,payload,status,created,updated)
+      SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM requests WHERE client=? AND created>?)<?`,
+      crypto.randomUUID(), principal.client, idempotencyKey, kind, body, 'queued', stamp, stamp,
+      principal.client, stamp - HOUR, HOURLY_REQUEST_LIMIT),
     sql(env, `INSERT OR IGNORE INTO deliveries(id,subscription,request,due)
       SELECT lower(hex(randomblob(16))),s.id,r.id,? FROM subscriptions s JOIN requests r ON r.client=? AND r.idem=?
       WHERE s.expires>? AND r.status='queued' AND ${WORKER_AUTHORIZED}`, stamp, principal.client, idempotencyKey, stamp, stamp),
   ]);
   const saved = await one(env, 'SELECT id,kind,payload,status FROM requests WHERE client=? AND idem=?', principal.client, idempotencyKey);
+  assert(saved, 'Hourly request limit reached', 429);
   assert(sameInput(saved), 'Idempotency key reused with different input', 409);
   return { request_id: saved.id, status: saved.status, asynchronous: true };
 }
@@ -711,8 +746,8 @@ async function deliveries(env) {
   for (const d of due) {
     const claimed = await sql(env, "UPDATE deliveries SET due=? WHERE id=? AND status='pending' AND due=?", now() + DELIVERY_CLAIM, d.id, d.due).run();
     if (changes(claimed) !== 1) continue;
-    const authorized = await one(env, `SELECT 1 AS ok FROM subscriptions s WHERE s.id=? AND ${WORKER_AUTHORIZED}`, d.sid, now());
-    if (d.expires <= now() || !authorized) {
+    const authorized = await one(env, `SELECT 1 AS ok FROM subscriptions s WHERE s.id=? AND s.expires>? AND ${WORKER_AUTHORIZED}`, d.sid, now(), now());
+    if (!authorized) {
       await sql(env, "UPDATE deliveries SET status='expired' WHERE id=?", d.id).run();
       continue;
     }
@@ -725,8 +760,12 @@ async function deliveries(env) {
         await sql(env, "UPDATE deliveries SET status='delivered' WHERE id=?", d.id).run();
         continue;
       }
-      // Terminal: recovery never retries 'gone' until the subscription is reconfigured.
-      if (response.status === 410 || response.status === 413) {
+      // A gone callback disconnects this subscription. A late response from an old
+      // generation must not expire a concurrently renewed or re-keyed subscription.
+      const gone = response.status === 410 && changes(await sql(env,
+        'UPDATE subscriptions SET expires=0 WHERE id=? AND secret=? AND expires=?', d.sid, d.secret, d.expires).run()) === 1;
+      // 413 is specific to this delivery; other work can still use the callback.
+      if (gone || response.status === 413) {
         await sql(env, "UPDATE deliveries SET status='gone' WHERE id=?", d.id).run();
         continue;
       }
@@ -778,7 +817,8 @@ async function cleanup(env) {
     sql(env, 'DELETE FROM deliveries WHERE request IN (SELECT id FROM requests WHERE created<?)', cutoff),
     sql(env, 'DELETE FROM requests WHERE created<?', cutoff),
     sql(env, 'DELETE FROM deliveries WHERE subscription NOT IN (SELECT id FROM subscriptions)'),
-    sql(env, 'DELETE FROM clients WHERE created<? AND id NOT IN (SELECT client FROM tokens)', cutoff),
+    retireClients(env, stamp),
+    sql(env, 'DELETE FROM client_activity WHERE client NOT IN (SELECT id FROM clients)'),
   ]);
 }
 

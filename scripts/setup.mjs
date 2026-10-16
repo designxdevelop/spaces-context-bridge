@@ -5,8 +5,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const dir = join(root, '.bridge-secrets'), codesFile = join(dir, 'connection-codes.txt'), devVars = join(root, '.dev.vars');
 const args = process.argv.slice(2), has = f => args.includes(f);
 const originArg = args.includes('--origin') ? args[args.indexOf('--origin') + 1] : undefined;

@@ -3,10 +3,11 @@ import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const root = new URL('../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../', import.meta.url));
 const read = p => readFileSync(join(root, p), 'utf8');
 const config = JSON.parse(read('wrangler.jsonc').replace(/^\s*\/\/.*$/gm, ''));
 const pkg = JSON.parse(read('package.json'));
@@ -51,9 +52,10 @@ test('package scripts route every remote operation through scripts/deploy.mjs an
 
 // Real ordering: a stub Wrangler records argv. Runs a copy of the scripts against a throwaway config.
 function deployRun({ dbs = [], database_id, env = {}, failOn, devVars } = {}) {
-  const tmp = mkdtempSync(join(tmpdir(), 'deploy-test-'));
+  const sandbox = mkdtempSync(join(tmpdir(), 'deploy-test-'));
+  const tmp = join(sandbox, 'checkout with spaces % # ü');
   try {
-    mkdirSync(join(tmp, 'scripts'));
+    mkdirSync(join(tmp, 'scripts'), { recursive: true });
     for (const f of ['deploy.mjs', 'guard.mjs']) cpSync(join(root, 'scripts', f), join(tmp, 'scripts', f));
     const cfg = JSON.parse(JSON.stringify(config)); if (database_id) cfg.d1_databases[0].database_id = database_id;
     const text = '// comment that must survive\n' + JSON.stringify(cfg, null, 2);
@@ -67,7 +69,7 @@ if (${JSON.stringify(failOn || null)} && a.startsWith(${JSON.stringify(failOn ||
 if (a === 'deploy' || a.startsWith('deploy ')) writeFileSync(${JSON.stringify(join(tmp, 'wrangler.jsonc'))}, 'MUTATED');`);
     const r = spawnSync(process.execPath, [join(tmp, 'scripts/deploy.mjs')], { encoding: 'utf8', env: cleanEnv({ CLOUDFLARE_ACCOUNT_ID: 'acct-a', BRIDGE_WRANGLER: join(tmp, 'stub.mjs'), ...env }) });
     return { status: r.status, calls: existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [], config: readFileSync(join(tmp, 'wrangler.jsonc'), 'utf8'), original: text, stderr: r.stderr };
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
+  } finally { rmSync(sandbox, { recursive: true, force: true }); }
 }
 const name = config.d1_databases[0].database_name;
 
@@ -121,9 +123,10 @@ test('.gitignore keeps local secrets out', () => {
 });
 
 test('setup script writes protected files, never prints codes, hashes like the Worker', () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'setup-test-'));
+  const sandbox = mkdtempSync(join(tmpdir(), 'setup-test-'));
+  const tmp = join(sandbox, 'checkout with spaces % # ü');
   try {
-    mkdirSync(join(tmp, 'scripts')); cpSync(join(root, 'scripts/setup.mjs'), join(tmp, 'scripts/setup.mjs'));
+    mkdirSync(join(tmp, 'scripts'), { recursive: true }); cpSync(join(root, 'scripts/setup.mjs'), join(tmp, 'scripts/setup.mjs'));
     const run = (...a) => spawnSync(process.execPath, [join(tmp, 'scripts/setup.mjs'), ...a], { encoding: 'utf8', env: cleanEnv() });
     const first = run('--print-hashes');
     assert.equal(first.status, 0, first.stderr);
@@ -152,7 +155,7 @@ test('setup script writes protected files, never prints codes, hashes like the W
     assert.match(readFileSync(join(tmp, '.dev.vars'), 'utf8'), /^AGENT_LOGIN_HASH=/m);
     assert.equal(run('--origin', 'https://other.example.com').status, 0);
     assert.match(readFileSync(join(tmp, '.dev.vars'), 'utf8'), /^PUBLIC_ORIGIN=https:\/\/other\.example\.com$/m, 'explicit --origin replaces it');
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
+  } finally { rmSync(sandbox, { recursive: true, force: true }); }
 });
 
 test('remote guard blocks unintended targets and passes explicit ones', () => {

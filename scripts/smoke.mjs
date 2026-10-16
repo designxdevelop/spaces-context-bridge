@@ -7,10 +7,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
 process.env.WRANGLER_SEND_METRICS = 'false';
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const tmp = mkdtempSync(join(tmpdir(), 'bridge-smoke-'));
 const port = 20000 + Math.floor(Math.random() * 20000), base = `https://localhost:${port}`;
 const b64u = b => Buffer.from(b).toString('base64url'), sha = s => createHash('sha256').update(s).digest('base64url');

@@ -155,6 +155,36 @@ test('hourly per-client request limit', async () => {
   await worker.queue(h.env, { client: 'b' }, 'lookup', { query: 'x' }, 'k-other');
 });
 
+test('concurrent unique submissions cannot exceed the hourly queue budget', async () => {
+  const h = await setup();
+  await connectWorker(h);
+  const results = await Promise.allSettled(Array.from({ length: 110 }, (_, i) =>
+    worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'x' }, 'burst-' + i)));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 100);
+  const refused = results.filter(r => r.status === 'rejected');
+  assert.equal(refused.length, 10);
+  assert.ok(refused.every(r => r.reason.status === 429));
+  assert.equal(h.count('requests'), 100);
+  assert.equal(h.count('deliveries'), 100);
+  const first = results.findIndex(r => r.status === 'fulfilled');
+  const replay = await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'x' }, 'burst-' + first);
+  assert.equal(replay.request_id, results[first].value.request_id);
+  assert.equal(h.count('requests'), 100, 'a retry does not consume another slot');
+});
+
+test('concurrent same-key retries keep their receipt when the last hourly slot is consumed', async () => {
+  const h = await setup();
+  await connectWorker(h);
+  for (let i = 0; i < 99; i++) await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'x' }, 'seed-' + i);
+  const results = await Promise.allSettled(['last', 'last', 'other'].map(key =>
+    worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'x' }, key)));
+  assert.equal(h.count('requests'), 100);
+  assert.equal(h.count('deliveries'), 100);
+  assert.equal(results[0].status, results[1].status, 'identical concurrent retries have the same outcome');
+  if (results[0].status === 'fulfilled') assert.equal(results[0].value.request_id, results[1].value.request_id);
+  for (const r of results.filter(r => r.status === 'rejected')) assert.equal(r.reason.status, 429);
+});
+
 test('leases: one claimant, expiry allows recovery, stale leases cannot complete', async t => {
   const clock = useClock(t);
   const h = await setup();
@@ -201,7 +231,7 @@ test('delivery retries back off, stop after five attempts, and treat 410 as fina
   assert.equal(h.db.prepare("SELECT status FROM deliveries WHERE attempts=0").get().status, 'gone');
 });
 
-test('recovery never retries a 410/413 refusal until the subscription is reconfigured', async t => {
+test('recovery never retries a 413 refusal until the subscription is reconfigured', async t => {
   const clock = useClock(t);
   const status = {};
   const calls = mockCallback(t, body => {
@@ -210,17 +240,17 @@ test('recovery never retries a 410/413 refusal until the subscription is reconfi
   });
   const h = await workerHarness();
   await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
-  const queued = await Promise.all(['k410', 'k413', 'k503', 'ok'].map(async k => (await worker.queue(h.env, { client: 'a' }, 'lookup', { query: k }, k)).request_id));
-  [status[queued[0]], status[queued[1]], status[queued[2]]] = [410, 413, 503];
+  const queued = await Promise.all(['k413', 'k503', 'ok'].map(async k => (await worker.queue(h.env, { client: 'a' }, 'lookup', { query: k }, k)).request_id));
+  [status[queued[0]], status[queued[1]]] = [413, 503];
   const sent = id => calls.filter(c => c.parsed.data?.request_id === id).length;
   const keepAlive = () => {
     h.db.prepare("UPDATE tokens SET expires=? WHERE role='worker'").run(clock.now + 3600000);
     h.db.prepare('UPDATE subscriptions SET expires=?').run(clock.now + 3600000);
   };
   for (let i = 0; i < 4 * 12; i++) { clock.advance(5 * MINUTE); keepAlive(); await cronTick(h.env); }
-  assert.deepEqual(queued.map(sent).slice(0, 2), [1, 1], 'terminal refusals are sent once');
-  assert.ok(sent(queued[2]) > 5, 'transient failures keep recovering');
-  assert.ok(sent(queued[3]) > 1, 'a delivered but unclaimed request is re-announced');
+  assert.deepEqual(queued.map(sent).slice(0, 1), [1], 'terminal refusals are sent once');
+  assert.ok(sent(queued[1]) > 5, 'transient failures keep recovering');
+  assert.ok(sent(queued[2]) > 1, 'a delivered but unclaimed request is re-announced');
 
   // A TTL refresh with the same secret is not a reconfiguration.
   await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
@@ -230,7 +260,7 @@ test('recovery never retries a 410/413 refusal until the subscription is reconfi
   delete status[queued[0]];
   await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams({ delivery: { secret: webhookSecret(2) } }));
   clock.advance(MINUTE); keepAlive(); await cronTick(h.env);
-  assert.deepEqual(queued.map(sent).slice(0, 2), [2, 2]);
+  assert.deepEqual(queued.map(sent).slice(0, 1), [2]);
   assert.equal(calls.at(-1).parsed.data.recovery, true);
 });
 
@@ -510,4 +540,55 @@ test('delivery discards unused bodies and never follows or accepts a redirect', 
   assert.equal(cancelled, 4);
   assert.equal(calls.length, 4, 'no Location target was fetched');
   assert.ok(calls.every(c => c.url === CALLBACK && c.redirect === 'manual'));
+});
+
+
+test('410 disconnects the subscription, stops the delivery batch and re-verification restores it', async t => {
+  useClock(t);
+  let gone = true;
+  const calls = mockCallback(t, body => {
+    const parsed = JSON.parse(body);
+    return new Response(JSON.stringify({ challenge: parsed.challenge }), { status: parsed.type === 'verification' || !gone ? 200 : 410 });
+  });
+  const h = await workerHarness();
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'one' }, 'one');
+  await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'two' }, 'two');
+  await worker.deliveries(h.env);
+  assert.equal(calls.filter(c => c.parsed.type !== 'verification').length, 1);
+  assert.ok(h.db.prepare('SELECT expires FROM subscriptions').get().expires <= Date.now());
+  await assert.rejects(worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'three' }, 'three'), { status: 409 });
+  gone = false;
+  const renewed = await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  assert.ok(renewed.body.result.id);
+  assert.equal(h.count('deliveries', "status='gone'"), 0, 're-verifying an expired subscription resets its terminal refusal');
+  await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'four' }, 'four');
+  await worker.deliveries(h.env);
+  assert.ok(calls.filter(c => c.parsed.type !== 'verification').length > 1);
+});
+
+test('a late 410 cannot expire a subscription renewed while its callback was in flight', async t => {
+  const clock = useClock(t);
+  let release, started;
+  const pending = new Promise(resolve => { release = resolve; });
+  const entered = new Promise(resolve => { started = resolve; });
+  mockCallback(t, async body => {
+    const parsed = JSON.parse(body);
+    if (parsed.type === 'verification') return new Response(JSON.stringify({ challenge: parsed.challenge }));
+    started();
+    await pending;
+    return new Response('', { status: 410 });
+  });
+  const h = await workerHarness();
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'one' }, 'one');
+  const delivering = worker.deliveries(h.env);
+  await entered;
+  clock.advance(MINUTE);
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  const expiry = h.db.prepare('SELECT expires FROM subscriptions').get().expires;
+  release();
+  await delivering;
+  assert.equal(h.db.prepare('SELECT expires FROM subscriptions').get().expires, expiry);
+  await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'two' }, 'two');
 });

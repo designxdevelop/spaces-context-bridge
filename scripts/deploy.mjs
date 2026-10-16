@@ -5,8 +5,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const configPath = join(root, 'wrangler.jsonc');
 const original = readFileSync(configPath, 'utf8');
 const db = JSON.parse(original.replace(/^\s*\/\/.*$/gm, '')).d1_databases?.find(d => d.binding === 'DB');

@@ -53,6 +53,7 @@ test('migrations are idempotent and preserve existing data', () => {
 test('restore quarantine invalidates credentials and prevents replay while preserving completed results', () => {
   const db = fresh();
   db.exec("INSERT INTO tokens VALUES('hash','client','worker',9999999999999,'access'); INSERT INTO clients VALUES('client','fixture','[]',1);");
+  db.exec("INSERT INTO client_activity VALUES('client',1)");
   for (const status of ['queued', 'processing', 'completed']) {
     db.prepare('INSERT INTO requests(id,client,idem,kind,payload,status,result,created,updated,lease,lease_expires) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
       .run(status, 'client', status, 'lookup', '{}', status, status === 'completed' ? 'retained result' : null, 1, 1, 'old-lease', 9999999999999);
@@ -60,6 +61,7 @@ test('restore quarantine invalidates credentials and prevents replay while prese
   db.exec(read('maintenance/quarantine-restored-copy.sql'));
   assert.equal(db.prepare('SELECT COUNT(*) n FROM tokens').get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM clients').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM client_activity').get().n, 0);
   for (const id of ['queued', 'processing']) {
     const request = db.prepare('SELECT status,lease,lease_expires FROM requests WHERE id=?').get(id);
     assert.deepEqual({ ...request }, { status: 'failed', lease: null, lease_expires: null });
@@ -82,4 +84,21 @@ test('regression-test schema in bridge.test.mjs has not drifted from migrations'
   if (!m) return; // test now loads migrations directly
   const db = new DatabaseSync(':memory:'); db.exec(m[1]);
   assert.deepEqual(shape(db), shape(fresh()));
+});
+
+
+test('activity migration preserves legacy registrations and grants all of them a fresh grace period', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(read('migrations/' + migrations[0]));
+  db.exec("INSERT INTO clients VALUES('cached','Cached','[]',1); INSERT INTO clients VALUES('active','Active','[]',2); INSERT INTO tokens VALUES('h','active','agent',9999999999999,'access')");
+  const clients = db.prepare('SELECT * FROM clients ORDER BY id').all();
+  const before = Date.now() - 2000;
+  for (const f of migrations.slice(1)) db.exec(read('migrations/' + f));
+  assert.deepEqual(db.prepare('SELECT * FROM clients ORDER BY id').all(), clients);
+  const activity = db.prepare('SELECT * FROM client_activity ORDER BY client').all();
+  assert.deepEqual(activity.map(r => r.client), ['active', 'cached']);
+  assert.ok(activity.every(r => r.last_used >= before && r.last_used <= Date.now()));
+  db.exec("UPDATE client_activity SET last_used=42 WHERE client='cached'");
+  for (const f of migrations.slice(1)) db.exec(read('migrations/' + f));
+  assert.equal(db.prepare("SELECT last_used FROM client_activity WHERE client='cached'").get().last_used, 42);
 });

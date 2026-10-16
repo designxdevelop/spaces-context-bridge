@@ -6,6 +6,7 @@ DELETE FROM consents;
 DELETE FROM tokens;
 DELETE FROM subscriptions;
 DELETE FROM deliveries;
+DELETE FROM client_activity;
 DELETE FROM clients;
 DELETE FROM rate_limits;
 UPDATE requests SET status='failed', lease=NULL, lease_expires=NULL,
