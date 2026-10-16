@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "spaces_context": {
+      "type": "remote",
+      "url": "https://bridge.example.invalid/mcp",
+      "enabled": false,
+      "oauth": {
+        "scope": "agent"
+      }
+    }
+  }
+}

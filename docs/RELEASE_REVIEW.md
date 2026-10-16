@@ -1,0 +1,30 @@
+# Private release review — 0.1.5
+
+Prepared October 15–16, 2026. **Private review candidate, not a production-ready release.** No personal deployment was used for release writes. Test resources, credentials and disposable Page identifiers are recorded only in protected local files, not this repository.
+
+## Verified evidence
+
+- Local verification: 93 tests passed, one optional installed-CLI test skipped, zero failures; Worker dry run passed; all 11 real local workerd/D1 smoke checks passed. The original 14 handoff tests remain included.
+- OpenCode 2.0.22: four config tests passed with the optional installed-CLI check enabled in an isolated profile. No model invocation, personal config migration or live OpenCode OAuth was performed.
+- Fresh CLI install: a clean source copy with `npm ci`, newly generated codes, a new Worker and a new D1 database completed database creation, migration and deployment using the documented setup/deploy sequence. This used an existing authenticated Cloudflare account, not a newly created human account. Dependency installation reported zero known vulnerabilities.
+- Hosted verification: both isolated deployments passed all six OAuth/protocol checks against remote D1: discovery, simultaneous agent/worker grants, PKCE, single-use codes, legacy/modern handshakes, role denial, disconnected-worker refusal, foreign-Origin rejection, refresh rotation/replay revocation and explicit revocation. The first review target initially failed the last check immediately after deployment; a second deployment of the same source and a fresh test run passed. The cause of that initial failure was not established; the fresh-bootstrap target passed its final run directly. Ten additional consecutive refresh/replay/revocation lifecycles then passed on the first target without redeployment. D1 metadata confirmed read replication disabled. The transient remains an investigation item; repeated passes do not establish its cause.
+- Executor: actual discovery exposed the five agent tools, and an authenticated `bridge_status` call through the saved per-user connection returned `role: agent`, version `0.1.5`, `worker_connected: false`. This verifies routing and tool execution in this T3/Codex session through Executor, not every provider/client.
+- ChatGPT: direct worker OAuth completed and the plugin catalog displayed four worker tools plus `request.created`. A Work chat initially lacked both the review plugin namespace and host subscription mechanism. Rescanning and explicitly selecting the plugin restored its tools: its actual status call returned `role: worker`, `worker_connected: false`. The host subscription mechanism remained unavailable. No subscription was created. Direct Pages fixture creation is preparation only, not bridge evidence.
+
+Source hash used for the final hosted runs (SHA-256 of `worker.mjs`): `e66f2044f711550832b2ca36a2b03ed7e9d21b1712ea4d5fea7b3c2fb97a141e`. Recompute after any source change; an earlier run does not validate a later revision.
+
+## Independent implementation and review
+
+Claude Opus 5.5 owned authentication/security and the refresh-replay follow-up. Claude Sonnet 5.5 owned deployment/CI and the fresh-bootstrap fix. GPT-6 Astra owned onboarding/docs and a separate review; GPT-6.1 Sol owned T3/OpenCode/Executor client examples. The orchestrator integrated and tested their changes. Astra's reported lease-recovery, origin-preservation, index-audit and edit-annotation findings were corrected. Opus added client-wide revocation on detected refresh replay. The final Sonnet review confirmed refresh tombstone and recovery transaction behavior and reported equal-role hashes, terminal webhook recovery, advertised text limits and the transient hosted failure. Opus corrected the first three with regression tests before the review commit; the transient is retained above. Its suggestion to ignore the generated `.cursor` rule was rejected because the owner explicitly requires that cloud-safe global-hook content to be committed. The referenced release-review document now exists. Duplicate prevention and refresh concurrency remain explicit limits, not accepted interoperability claims.
+
+## Release blockers
+
+1. **ChatGPT activation:** resolve why the host subscription capability is absent in the tested Work session despite working review-plugin tools. Obtain an actual `events/subscribe`, signed verification, stored subscription and event-triggered worker execution. OAuth and a catalog entry do not satisfy this gate.
+2. **Bridge acceptance:** run sourced lookup, the bounded disposable Page edit and synthetic transcript save through Executor; independently read the resulting Pages. Verify scope refusal, duplicate recovery and lifecycle behavior. None of these three round trips has passed yet.
+3. **Deployment button:** the official button requires public source. Keep this repository private until owner review; the CLI deployment does not prove the button provisions bindings/secrets/migrations correctly. A fresh human account and button flow remain untested.
+4. **Client coverage:** direct T3 provider sessions, live OpenCode OAuth/tool calls, Claude app/Code release interoperability and personal Executor consolidation remain unverified. Keep existing personal connections until acceptance passes.
+5. **Publication decisions:** approve the proposed MIT grant/copyright holder, supply a private vulnerability-reporting contact, review repository/history hygiene and approve public visibility and launch copy. No public announcement, public PR or visibility change is authorized before that review.
+
+## Review artifacts
+
+Start with [README](../README.md), [deployment](DEPLOYMENT.md), [client setup](CLIENTS.md), [T3/OpenCode/Executor](CLIENTS_T3_OPENCODE_EXECUTOR.md), [verification gates](VERIFICATION.md), [operations/privacy](OPERATIONS.md) and the [unpublished launch draft](LAUNCH_POST.md). Personal connection codes belong only in ignored, permission-restricted local files. Backup exports contain private data; never attach them to a public issue or PR.

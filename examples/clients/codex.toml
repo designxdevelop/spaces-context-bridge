@@ -1,0 +1,5 @@
+# Merge this table into the configuration for the chosen Codex provider home.
+# Replace the placeholder URL; enable only when ready to authorize this client.
+[mcp_servers.spaces_context]
+url = "https://bridge.example.invalid/mcp"
+enabled = false

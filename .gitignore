@@ -10,3 +10,4 @@ dist/
 .bridge-secrets/
 *.log
 .DS_Store
+LOCAL-CONNECTION-CODES.txt

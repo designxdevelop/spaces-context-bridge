@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spaces-context-bridge",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // No database_id on purpose: Wrangler / the Deploy button provision a fresh D1 database
+  // in the deploying account. To reuse an existing database, add its "database_id".
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spaces-context-bridge",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Delivers queued request.created webhooks and purges expired rows.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  // OAuth redirects carry ?code=&state= in the URL, so query strings must never reach logs or traces.
+  // redact_query_string is in Wrangler's schema but not on the public Workers Logs page; if a deploy
+  // rejects it, set logs.invocation_logs=false and traces.enabled=false instead.
+  "observability": { "enabled": true, "redact_query_string": true, "traces": { "enabled": false } }
+  // PUBLIC_ORIGIN (optional, https origin) and the two *_LOGIN_HASH secrets are not set here;
+  // see .dev.vars.example. Never add account_id, routes or secrets to this file.
+}
