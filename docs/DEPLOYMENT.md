@@ -2,7 +2,7 @@
 
 This is the currently implemented backend, selected only when you choose Cloudflare. For agent-assisted connection to an existing endpoint or another backend plan, use [setup with your agent](SETUP_WITH_AGENT.md). Another runtime needs an adapter; client MCP configuration alone does not host this server.
 
-The CLI provisions a D1 database, applies migrations, and deploys the Worker. The official button is prepared but **cannot be exercised while this repository is private**: Cloudflare requires a public GitHub/GitLab source repository. Keep it private until the final publication review. See [release evidence](RELEASE_REVIEW.md).
+The CLI provisions a D1 database, applies migrations, and deploys the Worker into your own Cloudflare account. The official button uses the public source repository. The full browser-button and fresh-human signup flow still needs verification; the clean CLI installation is separate evidence. See [release evidence](RELEASE_REVIEW.md).
 
 ## CLI quickstart
 

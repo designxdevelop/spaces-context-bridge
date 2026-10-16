@@ -1,6 +1,6 @@
 # Official research and compatibility
 
-Reviewed October 15, 2026. These are product-documentation findings, not tests of the release candidate. Account access, exact client versions and execution behavior still need independent verification.
+Reviewed October 15, 2026. These are product-documentation findings, not tests of the release. Account access, exact client versions and execution behavior still need independent verification.
 
 ## ChatGPT Space, Meetings and Work
 

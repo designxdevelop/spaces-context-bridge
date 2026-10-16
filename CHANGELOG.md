@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.5 — unreleased, private release preparation
+## 0.1.5 — October 16, 2026
 
 Prepared documentation for the single-owner MCP relay, scoped ChatGPT worker prompt, client setup, data handling, verification, and proposed deployment workflow. Added a design-only opt-in transcript companion and conditional launch draft. Adopted the MIT license with copyright attributed to Design X Develop.
 

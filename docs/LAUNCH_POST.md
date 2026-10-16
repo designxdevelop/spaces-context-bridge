@@ -1,14 +1,14 @@
 # Launch post — DRAFT, NOT APPROVED FOR PUBLICATION
 
-Prepared October 15, 2026. MIT / Design X Develop is approved. Do not post until the release owner approves publication and the final acceptance evidence. The draft describes demonstrated synthetic flows in a private release candidate. Update it only with verified results; do not invent a launch date or demo.
+Updated October 16, 2026. The owner approved MIT / Design X Develop and public repository publication. This social post remains a draft and must not be posted without separate authorization. It describes demonstrated synthetic flows; do not invent additional interoperability or automatic sync.
 
 ## Draft
 
 Superwhisper’s new Meetings release made me rethink Granola: I want ChatGPT Space to hold my notes, with coding agents able to request sourced context and Page edits.
 
-I’m building Spaces Context Bridge for that workflow. Synthetic lookups, bounded edits and transcript-to-Page saves now work end to end through Executor and a ChatGPT cloud event task. No local worker needed for that route.
+I open-sourced Spaces Context Bridge for that workflow. Synthetic lookups, bounded edits and transcript-to-Page saves now work end to end through Executor and a ChatGPT cloud event task. No local worker needed for that route.
 
-It’s still a private release candidate, with guides for T3 Code, OpenCode and Claude. Direct MCP connections remain an option. No automatic transcript sync—and more client testing before release.
+Deploy it to your own Cloudflare account and connect your own clients. Setup guides cover T3 Code, OpenCode and Claude; Executor is optional. No shared notes service and no automatic transcript sync. More live-client testing remains.
 
 ## Fact check
 

@@ -1,14 +1,16 @@
 # Spaces Context Bridge
 
-**0.1.5 — private release candidate; synthetic end-to-end workflow verified.** A self-hosted, single-owner MCP relay for asking a ChatGPT Work Cloud worker to look up context, edit an authorized Page, or save a selected transcript as a Page.
+**0.1.5 — open-source and self-hosted.** A self-hosted, single-owner MCP relay for asking a ChatGPT Work Cloud worker to look up context, edit an authorized Page, or save a selected transcript as a Page.
 
 The bridge has **no direct Spaces access**. It stores requests in Cloudflare D1; a separately authorized ChatGPT worker uses the owner's available tools. OAuth authentication is not worker-event activation. A queued request is not a completed operation. There is no automatic transcript sync.
 
-## Release status
+Each installation runs in its owner’s Cloudflare account with its own database, connection codes and authorized ChatGPT worker. Maintainers do not operate a shared notes service.
 
-Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and all three synthetic bridge operations through **T3/Codex → Executor → bridge → ChatGPT cloud event task → actual Spaces Pages** have passed. Lookup sources, the bounded Page edit and the verbatim transcript Page were independently verified. No local daemon was needed for this cloud route. This does not establish production readiness, every client, automatic transcript sync or the public deployment button. See [evidence and remaining gates](docs/RELEASE_REVIEW.md). Licensed under MIT, copyright 2026 Design X Develop; see [LICENSE](LICENSE).
+## Verified capabilities
 
-## What it is intended to do
+Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and all three synthetic bridge operations through **T3/Codex → Executor → bridge → ChatGPT cloud event task → actual Spaces Pages** have passed. Lookup sources, the bounded Page edit and the verbatim transcript Page were independently verified. No local daemon was needed for this cloud route. Additional clients and the complete public deployment-button flow still need verification; automatic transcript sync is not implemented. See [evidence and remaining gates](docs/RELEASE_REVIEW.md). Licensed under MIT, copyright 2026 Design X Develop; see [LICENSE](LICENSE).
+
+## Workflows
 
 - `lookup_context`: enqueue a question for authorized Spaces/Meeting sources; retrieve sources with `get_result`.
 - `request_document_edit`: request a bounded edit to an exact Page ID or URL, within the owner's configured scope.
@@ -25,7 +27,7 @@ Use the [setup prompt for your chosen agent or MCP host](docs/SETUP_WITH_AGENT.m
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/designxdevelop/spaces-context-bridge)
 
-**Prepared button, not a verified deployment path.** The repository is private during preparation. The button requires a public source repository, so it is inactive while this repo is private. It does not complete human authentication, worker activation, or acceptance testing. Cloudflare documents this [official button format and resource provisioning](https://developers.cloudflare.com/workers/platform/deploy-buttons/).
+The button deploys into your own Cloudflare account. The complete browser-button flow is still unverified; the documented CLI flow has passed a clean installation with fresh resources. Human authentication, worker activation and acceptance testing remain part of setup. Cloudflare documents this [official button format and resource provisioning](https://developers.cloudflare.com/workers/platform/deploy-buttons/).
 
 1. Follow [fresh deployment](docs/DEPLOYMENT.md) using a new Worker and D1 database.
 2. Connect your agent client and ChatGPT worker using [client setup](docs/CLIENTS.md); enter connection codes only on the consent page.
@@ -47,3 +49,9 @@ Cloudflare Workers and D1 have free allowances, but this project has no measured
 One deployment represents one owner. It is not a tenant-isolated service for unrelated people. Page authorization is enforced by worker instructions and source permissions, not by a server-side Page allowlist. Cleanup currently removes requests by creation age after seven days when cron runs. Retries, leases, and request idempotency do not guarantee exactly-once Page edits.
 
 [Research and compatibility](docs/RESEARCH.md) covers official product facts and access limits. [Optional companion design](docs/COMPANION_DESIGN.md) describes a future opt-in transcript sender; it is not implemented. [Contributing](CONTRIBUTING.md) explains local checks. This project is independent of OpenAI, Anthropic, Cloudflare, Superwhisper, and Granola.
+
+## Support
+
+Use [GitHub Issues](https://github.com/designxdevelop/spaces-context-bridge/issues/new/choose) for setup questions, reproducible bugs and feature requests. Include the version, client, setup step and a synthetic reproduction; omit credentials, transcripts, database exports and private links.
+
+Report security vulnerabilities through [GitHub private vulnerability reporting](https://github.com/designxdevelop/spaces-context-bridge/security/advisories/new), as described in [SECURITY.md](SECURITY.md).

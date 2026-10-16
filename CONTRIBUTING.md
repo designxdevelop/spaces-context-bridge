@@ -1,6 +1,6 @@
 # Contributing
 
-This is private release preparation at version 0.1.5. Keep work local unless the release owner explicitly authorizes publication. MIT remains proposed, not approved.
+This is a self-hosted open-source project licensed under MIT, copyright 2026 Design X Develop. Each operator deploys and controls their own instance. Keep personal configuration, credentials and notes out of contributions.
 
 1. Read the README, security policy and verification gates. Use synthetic data and fresh resources; never reuse another owner's deployment or credentials.
 2. Make a focused change. Preserve other contributors' edits and document any schema, authorization, or behavior changes.
