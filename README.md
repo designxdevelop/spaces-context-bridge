@@ -71,9 +71,11 @@ Your agent decides what to do and calls the adapter's tools. The adapter makes a
 
 Spaces Pages live at OpenAI. When your agent reads a Page, its content is returned to that agent and its model provider; edits and saves go through the local adapter and Codex back to Spaces. Optional meeting imports also send the selected recording text to your agent's provider and OpenAI. The adapter keeps only IDs, hashes and status in a local journal, and its logs contain short categories, not content. It relies on Codex's own sign-in and doesn't extract those credentials. Details are in [operations](docs/OPERATIONS.md#direct-adapter) and the [security policy](SECURITY.md).
 
-## Optional: cloud relay
+## Optional cloud route — slow, asynchronous
 
-The original route is still here. A Cloudflare Worker with a D1 database queues requests, and a ChatGPT cloud task picks them up. It can process Spaces requests while your Mac is asleep and from remote clients; reading local Superwhisper recordings still needs your Mac. It's asynchronous (expect roughly 40 seconds to a few minutes per request), it stores request payloads, including transcripts, in your D1 database, and it takes more setup. Use it as a fallback, not as the default.
+**The cloud route is much slower: observed requests took roughly 40 seconds to a few minutes, versus seconds on the direct adapter. Use the direct adapter for interactive reads and edits.** These are observations, not latency guarantees.
+
+The cloud route is optional for remote clients or Spaces requests that need to run while your Mac is asleep. A Cloudflare Worker and D1 database queue requests for a ChatGPT cloud task to process. The wait includes that task's scheduling and processing, not just an MCP server call. Reading local Superwhisper recordings still needs your Mac. This route also takes more setup and stores request payloads, including transcripts, in your own D1 database.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/designxdevelop/spaces-context-bridge)
 
