@@ -6,7 +6,7 @@ Prepared October 16, 2026. **The original cloud event workflow has passed all th
 
 | Area | Evidence |
 | --- | --- |
-| Local verification | 108 tests passed, one optional installed-CLI check skipped, zero failures; Worker dry run and all 11 real local workerd/D1 smoke checks passed. The original 14 handoff tests remain included. |
+| Local verification | 109 tests passed, one optional installed-CLI check skipped, zero failures; Worker dry run and all 11 real local workerd/D1 smoke checks passed. The original 14 handoff tests remain included. |
 | Fresh CLI deployment | A clean source copy with `npm ci`, generated codes, a new Worker and new D1 completed creation, migration and deployment. This used an existing authenticated Cloudflare account, not a fresh human signup. Final source was also deployed to the separate bootstrap resources. |
 | Hosted OAuth/protocol | Six checks passed against isolated remote D1: discovery, concurrent role sign-ins, CSRF/PKCE/single-use codes, both protocol modes, role denial, disconnected-worker refusal, foreign-Origin rejection, refresh rotation/replay and revocation. Final bootstrap checks include three refresh/replay cycles. |
 | Executor in T3/Codex | Actual discovery exposed all five agent tools; saved per-user agent OAuth returned the correct role. Requests and original-ID result retrieval used the actual Executor connection. This does not validate every T3 provider or client. |
@@ -32,9 +32,9 @@ Opus and Sonnet independently reviewed the callback fixes without blocking findi
 
 ## PR #1 independent review fixes
 
-Astra 6 medium identified the concurrent hourly-limit race and encoded checkout-path failure. Opus 5.5 high identified registration cleanup breaking cached-ID reconnects, anonymous registration capacity exhaustion, and gone callbacks still counting as connected. All five findings were accepted and fixed. Registration activity uses additive migration `0002`, preserving the original client schema and giving existing registrations a one-time grace period. New regressions cover the concurrency, lifecycle, migration and callback cases.
+Astra 6 medium identified the concurrent hourly-limit race and encoded checkout-path failure. Opus 5.5 high identified registration cleanup breaking cached-ID reconnects, anonymous registration capacity exhaustion, and gone callbacks still counting as connected. All five findings were accepted and fixed. Registration activity uses additive migration `0002`, preserving the original client schema and giving existing registrations a one-time grace period. New regressions cover the concurrency, lifecycle, migration and callback cases. Astra’s follow-up found a 410/re-verification race; the subscription expiry and terminal delivery transition now commit in one D1 batch, with a regression proving subsequent recovery.
 
-The updated candidate passed 108 local tests (one optional installed-CLI check skipped), the Worker build, and all 11 local workerd/D1 checks from a checkout containing spaces, percent, hash and Unicode characters. These post-review changes have local evidence only: the earlier hosted Page round trips and deployment checks above apply to their recorded revisions. They were not redeployed to the personal or review service during this PR review.
+The updated candidate passed 109 local tests (one optional installed-CLI check skipped), the Worker build, and all 11 local workerd/D1 checks from a checkout containing spaces, percent, hash and Unicode characters. These post-review changes have local evidence only: the earlier hosted Page round trips and deployment checks above apply to their recorded revisions. They were not redeployed to the personal or review service during this PR review.
 
 ## Remaining release gates
 

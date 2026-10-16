@@ -592,3 +592,39 @@ test('a late 410 cannot expire a subscription renewed while its callback was in 
   assert.equal(h.db.prepare('SELECT expires FROM subscriptions').get().expires, expiry);
   await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'two' }, 'two');
 });
+
+
+test('re-verification after a 410 transition keeps the refused request recoverable', async t => {
+  const clock = useClock(t);
+  let gone = true, reverified = false;
+  const calls = mockCallback(t, body => {
+    const parsed = JSON.parse(body);
+    return new Response(JSON.stringify({ challenge: parsed.challenge }), { status: parsed.type === 'verification' || !gone ? 200 : 410 });
+  });
+  const h = await workerHarness();
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  const queued = await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'one' }, 'one');
+  // Allow the host to reconnect at the first externally visible disconnection.
+  // Separate writes expose that point early; a D1 batch exposes it only at commit.
+  const reconnect = async () => {
+    if (reverified || h.db.prepare('SELECT expires FROM subscriptions').get()?.expires !== 0) return;
+    reverified = true;
+    gone = false;
+    assert.ok((await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams())).body.result.id);
+  };
+  const prepare = h.env.DB.prepare.bind(h.env.DB), batch = h.env.DB.batch.bind(h.env.DB);
+  h.env.DB.prepare = statement => {
+    const prepared = prepare(statement);
+    return { bind(...params) {
+      const bound = prepared.bind(...params);
+      return { ...bound, run: async () => { const result = await bound.run(); await reconnect(); return result; } };
+    } };
+  };
+  h.env.DB.batch = async statements => { const result = await batch(statements); await reconnect(); return result; };
+  await worker.deliveries(h.env);
+  assert.equal(reverified, true);
+  assert.equal(h.count('deliveries', "status='gone'"), 0);
+  clock.advance(31 * MINUTE);
+  await cronTick(h.env);
+  assert.ok(calls.filter(c => c.parsed.data?.request_id === queued.request_id).length >= 2);
+});

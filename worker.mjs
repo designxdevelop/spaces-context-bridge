@@ -762,10 +762,18 @@ async function deliveries(env) {
       }
       // A gone callback disconnects this subscription. A late response from an old
       // generation must not expire a concurrently renewed or re-keyed subscription.
-      const gone = response.status === 410 && changes(await sql(env,
-        'UPDATE subscriptions SET expires=0 WHERE id=? AND secret=? AND expires=?', d.sid, d.secret, d.expires).run()) === 1;
+      if (response.status === 410) {
+        // Publish both state changes together: re-verification must see the gone
+        // delivery when it resets refusals, never an intermediate pending row.
+        const result = await env.DB.batch([
+          sql(env, `UPDATE deliveries SET status='gone' WHERE id=? AND EXISTS(
+            SELECT 1 FROM subscriptions WHERE id=? AND secret=? AND expires=?)`, d.id, d.sid, d.secret, d.expires),
+          sql(env, 'UPDATE subscriptions SET expires=0 WHERE id=? AND secret=? AND expires=?', d.sid, d.secret, d.expires),
+        ]);
+        if (changes(result[1]) === 1) continue;
+      }
       // 413 is specific to this delivery; other work can still use the callback.
-      if (gone || response.status === 413) {
+      if (response.status === 413) {
         await sql(env, "UPDATE deliveries SET status='gone' WHERE id=?", d.id).run();
         continue;
       }
