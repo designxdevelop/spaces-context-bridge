@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — October 16, 2026
+
+The local direct MCP adapter is now included in the public source and is the recommended route for interactive use. It calls the signed-in Codex app-server without starting another model turn or waiting for a ChatGPT event task. Superwhisper remains a separate meeting source; selected meeting notes and raw transcripts can be saved directly into an explicitly chosen Space. ChatGPT Meetings is an additional read source.
+
+Adds owner-only local setup, authenticated loopback HTTP, guarded one-block edits, separate notes/transcript saves, source-based idempotency and exact Page readback. Existing transcript keys and journal entries retain their identity. The optional Cloudflare relay remains available; its runtime and migrations are unchanged at 0.1.5.
+
+README, client setup and reusable prompts now distinguish the recommended local route from the asynchronous cloud route. No automatic recording sync, native Meeting creation, hosted notes service, or remote exposure of the local adapter is introduced. See the release verification notes for the exact tested paths and remaining limits.
+
 ## 0.1.5 — October 16, 2026
 
 Prepared documentation for the single-owner MCP relay, scoped ChatGPT worker prompt, client setup, data handling, verification, and proposed deployment workflow. Added a design-only opt-in transcript companion and conditional launch draft. Adopted the MIT license with copyright attributed to Design X Develop.

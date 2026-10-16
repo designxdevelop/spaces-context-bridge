@@ -3,7 +3,7 @@ name: Setup or usage question
 about: Ask for help with your self-hosted installation
 ---
 
-**Version and client:**
+**Version, client and route (local direct / cloud relay):**
 
 **Setup step or workflow:**
 

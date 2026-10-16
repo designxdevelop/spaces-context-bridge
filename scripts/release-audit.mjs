@@ -15,7 +15,7 @@ const rules = [
   ['connection-code', /(?:AGENT|WORKER)_CODE\s*[=:]\s*["']?[A-Za-z0-9_-]{24,}/],
   ['personal-page-reference', /\bpage_(?:space_)?[a-f0-9]{32}\b/i],
 ];
-const privateFile = /(?:^|\/)(?:\.bridge-secrets(?:\/|$)|LOCAL-CONNECTION-CODES\.txt$|connection-codes\.txt$|(?:\.dev\.vars(?:\..+)?|\.env(?:\..+)?|credentials(?:\..+)?|.*\.pem|.*\.key|\.DS_Store)$)/;
+const privateFile = /(?:^|\/)(?:\.bridge-secrets(?:\/|$)|LOCAL-CONNECTION-CODES\.txt$|connection-codes\.txt$|owner-key$|\.setup\.lock$|(?:\.dev\.vars(?:\..+)?|\.env(?:\..+)?|credentials(?:\..+)?|.*\.pem|.*\.key|\.DS_Store)$)/;
 const approvedExample = /(?:\.example|\.template|\.tpl)$/;
 const failures = [];
 let versions = 0;

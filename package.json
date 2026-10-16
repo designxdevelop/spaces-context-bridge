@@ -1,8 +1,8 @@
 {
   "name": "spaces-context-bridge",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "private": true,
-  "description": "Single-owner MCP bridge that relays context requests to a ChatGPT worker, deployed to your own Cloudflare account.",
+  "description": "Connect meeting notes and coding agents to ChatGPT Spaces through a fast local MCP adapter, with an optional self-hosted cloud relay.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -20,7 +20,10 @@
     "deploy": "node scripts/deploy.mjs",
     "secrets:upload": "node scripts/setup.mjs --upload",
     "check:release": "node scripts/release-audit.mjs",
-    "smoke:remote": "node scripts/remote-smoke.mjs"
+    "smoke:remote": "node scripts/remote-smoke.mjs",
+    "direct:setup": "node direct/setup.mjs",
+    "direct:start": "node direct/http-server.mjs",
+    "test:direct": "node --test test/direct-adapter.test.mjs test/direct-rpc.test.mjs test/direct-http.test.mjs test/direct-meetings.test.mjs test/direct-meeting-notes.test.mjs test/direct-setup.test.mjs"
   },
   "devDependencies": {
     "wrangler": "4.151.0"

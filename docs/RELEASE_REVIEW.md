@@ -1,4 +1,37 @@
-# Release verification — 0.1.5
+# Release verification — 0.2.0
+
+The recommended route is now the local direct MCP adapter. The optional Cloudflare relay remains available with its existing 0.1.5 runtime and migrations. The record below separates observed local behavior from historical cloud acceptance; passing one route does not validate the other.
+
+## Direct route evidence
+
+The predecessor private adapter passed 86 synthetic contract/transport tests before public packaging. An actual personal T3/Codex → Executor → authenticated loopback adapter → Codex app-server → Spaces route completed sourced Page reads, a guarded exact edit, transcript creation, meeting-note creation, independent readback and same-source duplicate protection. No additional model turn or ChatGPT event queue was used by the adapter. These results establish the tested owner's route, not access for every new account or client.
+
+Observed calls included a 2.8-second Page read, 10.9-second bounded edit, 7.2-second transcript save and 6.1-second notes save. Separate reads verified exact content and destination. Timings are individual observations, not benchmarks or latency guarantees. A 148536-byte synthetic transcript was independently verified after upstream Page freshness recovered. A temporary readback delay is reported truthfully as saved but unverified, not silently treated as completion.
+
+Superwhisper MCP listing and a selected existing meeting read were verified independently. The read returned a saved summary and timestamped transcript segments. Real recording content was not copied into test Pages; Spaces write tests used explicit synthetic fixtures. Consequently, this is separate source-read and destination-write evidence, not a claim that a real Superwhisper recording was imported end to end. On-demand source selection and import are supported; automatic recording sync is not implemented.
+
+Both native ChatGPT Meetings tools were available, and listing returned no private meeting notes. A successful fetch and import of a real ChatGPT Meeting note remain unverified. Synthetic contracts cover the successful payload shapes, durable IDs, availability status, pagination/filter pass-through and exact selector boundaries.
+
+Independent reviews used Claude Sonnet 5.5 for Meetings/notes implementation and Claude Opus 5.5 for authorization, error handling, notes/transcript separation, old-journal compatibility and write recovery. Opus approved the private candidate after read errors stopped being labelled as uncertain writes. Public packaging, clean-setup checks and final verification results are recorded with this release's pull request.
+
+## Public package and clean installation
+
+The assembled public source passed 215 automated tests with one optional installed-client check skipped, the Worker dry-run build and all 11 local workerd/D1 smoke checks. The new direct suite accounts for 102 passing tests. Astra independently reviewed the public setup, private-file checks, key/state preservation, fixed tool boundary and fail-closed approval handling without release-blocking findings. All six packaged runtime modules match the reviewed fingerprints.
+
+A clean source copy, without node_modules, generated a fresh owner key and read-only config using the shipped setup command and started on a separate temporary loopback port. Unauthenticated requests were refused; all ten tools were discoverable; a real signed-in Space Page read completed in about 3.1 seconds. A save was refused while read-only. Adding one explicit write Space preserved the key and enabled a synthetic notes save, verified in about 7.5 seconds. An independent read confirmed exact notes, title and destination; repeating the same source returned the same verified Page. The test service was stopped, and the real personal service and cloud deployment were unchanged. This used existing owner Codex authorization, not a fresh human signup or a real recording import.
+
+## Remaining operational limits
+
+- The local host must be awake, the server running, and Codex signed in with callable source connectors. Upstream owner interaction fails closed and requires human action.
+- Actual live direct use was verified on macOS with Codex CLI 0.163.0 through T3/Codex and Executor. Other MCP clients have setup instructions, not universal live interoperability evidence.
+- The local bearer authenticates one trusted owner's clients; it is not a multi-user or remote-hosted service. Keep it on loopback.
+- Long-running token expiry, a new human account's connector eligibility, remote hosting and multi-host journal coordination remain unverified. A source-only key prevents ordinary same-source retries from duplicating a Page; it is not an exactly-once guarantee across unrelated hosts or lost journals.
+- Notes and transcripts have explicit size/format limits. Keep old source IDs on retries. Inspect uncertain outcomes before retrying or switching routes. No source deletion, recording mutation or bulk automatic ingestion is provided.
+
+## Historical cloud relay evidence — 0.1.5
+
+The following is the preserved October 16, 2026 release record for the optional cloud route. Statements about the personal subscription or cutover describe that historical test stage, not the current direct setup.
+
 
 Prepared October 16, 2026. **The original cloud event workflow has passed all three synthetic bridge round trips. This is a public, self-hosted open-source release.** The original synthetic review left the personal deployment, documents and client connections unchanged. The maintainer later authorized the shared-source personal upgrade recorded below. Test origins, credentials, Page IDs and request receipts remain in protected local evidence outside this repository.
 

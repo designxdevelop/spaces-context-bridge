@@ -11,3 +11,10 @@ dist/
 *.log
 .DS_Store
 LOCAL-CONNECTION-CODES.txt
+
+# Direct adapter runtime (default setup stores this outside the checkout).
+owner-key
+.setup.lock
+/direct/config.json
+/direct/state/
+/state/

@@ -1,4 +1,6 @@
-# Proposed scheduled ChatGPT processor
+# Proposed scheduled ChatGPT processor — cloud relay only
+
+The recommended local direct adapter does not need this processor.
 
 **Not implemented or enabled. The native event route is now verified, so this fallback is not needed for the tested setup. Implementation would require explicit owner approval.** This is an opt-in fallback for the original relay when native MCP event-task creation fails. It is not a replacement note store.
 
@@ -6,7 +8,7 @@
 
 A ChatGPT Work cloud task checks the existing bridge queue on an owner-selected interval, claims each request and uses the same authorized Spaces tools to perform lookup, edit or ingestion. It completes the original request with verified sources/receipts. Other agents continue submitting through the same direct MCP or Executor route. No laptop daemon is needed for a cloud task.
 
-The event-driven processor remains the default. Scheduled processing introduces latency up to the task interval, consumes scheduled-run usage even when the queue is empty, and still depends on successful ChatGPT task creation and tool access. The host's actual supported cadence and execution must be tested; a saved schedule is not proof that it runs.
+Within the optional cloud relay, the event-driven processor remains the default. Scheduled processing introduces latency up to the task interval, consumes scheduled-run usage even when the queue is empty, and still depends on successful ChatGPT task creation and tool access. The host's actual supported cadence and execution must be tested; a saved schedule is not proof that it runs.
 
 ## Isolated implementation scope
 

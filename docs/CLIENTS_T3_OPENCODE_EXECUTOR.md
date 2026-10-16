@@ -1,23 +1,46 @@
-# T3 Code, OpenCode, and Executor clients
+# T3 Code, OpenCode and Executor clients
 
-These are agent-side integration instructions for Spaces Context Bridge 0.1.5.
-Replace `https://bridge.example.invalid/mcp` with your own deployment's `/mcp`
-endpoint. Each deployment belongs to one owner and uses that owner's Cloudflare
-resources. The bridge queues work for ChatGPT; it does not access Spaces directly.
+This guide has two parts. [Direct adapter](#direct-adapter) covers the recommended local route. [Cloud relay](#cloud-relay-optional) covers the optional Cloudflare-hosted relay, including its OAuth setup, acceptance matrix and config checks.
 
-## Choose an agent connection path
+## Direct adapter
+
+The adapter runs on your Mac at `http://127.0.0.1:4791/mcp` and authenticates with the owner key that `npm run direct:setup` created. Per-client configs are in [client setup](CLIENTS.md#direct-adapter). This section covers what's specific to T3 Code and Executor.
+
+### Verified route: T3 Code → Executor → adapter
+
+This is the route tested live: a T3 Code session on the Codex provider, calling a personal Executor connection that points at the adapter. Reads, a bounded edit, transcript and notes saves, independent readbacks and same-artifact retries all passed through it. See the [evidence](PRODUCT.md#evidence).
+
+1. Start the adapter with `npm run direct:start` on the same Mac as Executor.
+2. In Executor, add a personal remote MCP connection (streamable HTTP) to `http://127.0.0.1:4791/mcp` with bearer or header authentication. Enter the key in Executor's private credential form, never in a chat. Keep it out of shared and organization catalogs.
+3. Connect each T3 provider to Executor using Executor's own client instructions.
+4. In a fresh T3 session, ask: "Through Executor, call the Spaces Context Bridge direct adapter's `bridge_direct_status` tool with `check_upstream: true` and report the actual response." Expect your configured allowlist and upstream availability. A connection showing up in a list isn't proof; the call has to succeed.
+5. Add [the agent prompt](../prompts/DIRECT_AGENT_PROMPT.txt) to each provider's persistent instructions, or to the Executor connection notes if agents can see them.
+
+### T3 providers without Executor
+
+T3 Code runs providers in the selected environment. Configure the adapter where that provider runs, and set `SPACES_DIRECT_KEY` in that environment. Use the Codex, Claude Code or OpenCode config from [client setup](CLIENTS.md#direct-adapter). After changing config, use T3's **Settings > Providers > Refresh provider status**, start a fresh session and call `bridge_direct_status`. This path hasn't been tested live yet. See the [T3 documentation index](https://raw.githubusercontent.com/pingdotgg/t3code/main/docs/README.md) for provider-specific config directories.
+
+T3's own MCP server, offered to outside agents, exposes T3 orchestration. Its URL isn't the adapter's.
+
+### Keeping the cloud relay as a fallback
+
+Nothing in the direct setup requires removing an existing cloud relay connection. Keep it as a fallback if you use it, and remove old connections or credentials yourself once you're sure you no longer need them. Never let an agent retry an uncertain write on the other route before checking whether the original write happened.
+
+## Cloud relay (optional)
+
+These are agent-side instructions for the cloud relay. Replace `https://bridge.example.invalid/mcp` with your own deployment's `/mcp` endpoint. Each deployment belongs to one owner and uses that owner's Cloudflare resources. The relay queues work for ChatGPT; it doesn't access Spaces itself.
+
+### Choose an agent connection path
 
 Both paths are supported public setup options:
 
-- **Direct:** configure the bridge in each individual client and authorize each
+- **Per client:** configure the relay in each individual client and authorize each
   connection with the **agent** role.
 - **Through Executor:** connect the bridge once in your own Executor host using
   per-user OAuth, then expose that Executor connection to your coding clients.
 
-For the maintainer's personal setup, consolidate all agent access through the
-existing Executor **after verification**. Keep existing direct connections until
-the Executor route passes the acceptance checks below. Public users can choose
-either path without depending on the maintainer's Executor or personal resources.
+If you move from per-client connections to Executor, keep the existing
+connections until the Executor route passes the acceptance checks below.
 
 The **ChatGPT worker always connects directly to the bridge**, using its separate
 worker role and event subscription. Never put a worker connection code or worker
@@ -30,14 +53,14 @@ configure, as well as the bridge and ChatGPT. Choose its operator and retention
 settings accordingly. This setup does not upload the Cloudflare Worker source to
 Executor. A local transcript MCP server alone does not sync recordings to ChatGPT.
 
-## Direct OpenCode CLI setup
+### OpenCode CLI (per-client connection)
 
 Check `opencode --version` before choosing a file. The examples start disabled so
 copying an example does not initiate a connection. Merge only the bridge entry
 into an existing configuration; never replace a global config that contains
 provider logins or other servers.
 
-### OpenCode 2
+#### OpenCode 2
 
 Use [opencode-v2.json](../examples/clients/opencode-v2.json) in your project's
 `opencode.json` (or merge it into `opencode.jsonc`). Replace the URL and set
@@ -63,7 +86,7 @@ Code Mode is enabled by default. Tools may appear through `execute` as
 tools. If a consumer requires individual tools, set `codemode: false` on this
 server and recheck discovery. See the [official V2 MCP reference](https://opencode.ai/v2/docs/mcp-servers/).
 
-### OpenCode 1
+#### OpenCode 1
 
 Use [opencode-v1.json](../examples/clients/opencode-v1.json), replace the URL, and
 set `enabled` to `true`. Run `opencode mcp auth spaces_context` and then
@@ -78,14 +101,14 @@ Do not run V1 and V2 against the same user data: V2 migrates OpenCode's database
 The automated CLI check below targets V2 only; V1 runtime compatibility remains
 unverified.
 
-## T3 Code: configure the selected provider
+### T3 Code: configure the selected provider
 
 T3 Code runs providers in the selected environment. Configure and authenticate the
 bridge where that provider runs, with its actual config directory and account.
 An MCP connection in another desktop app or provider does not establish this
 provider's access. See the [T3 documentation index](https://raw.githubusercontent.com/pingdotgg/t3code/main/docs/README.md).
 
-### Codex provider
+#### Codex provider
 
 Merge [codex.toml](../examples/clients/codex.toml) into the chosen Codex home's
 `config.toml`, replace the URL, and set `enabled = true`. Then, with `CODEX_HOME`
@@ -106,7 +129,7 @@ explains shared and shadow homes; select the configured shared home rather than
 copying credentials between directories. See [Codex MCP configuration](https://developers.openai.com/codex/mcp)
 for the CLI and TOML format.
 
-### Claude provider
+#### Claude provider
 
 Merge [claude.mcp.json](../examples/clients/claude.mcp.json) into a project
 `.mcp.json`, replace the URL, and approve that project server when prompted.
@@ -126,7 +149,7 @@ describes configuration directories and remote environments;
 and OAuth. Claude app connectors and Claude Code project/user entries have
 separate setup paths; check the one used by the running provider.
 
-### OpenCode provider
+#### OpenCode provider
 
 Use the version-matched OpenCode setup above on the environment hosting OpenCode.
 T3 currently documents support for OpenCode 1.14.19+ and V2 2.0.18+, with limited
@@ -144,7 +167,7 @@ T3's MCP server offered to outside agents exposes T3 orchestration; its URL is
 the provider or to its existing Executor connection. They do not configure a
 second T3 orchestration server.
 
-## Optional Executor route
+### Optional Executor route
 
 This repository supplies a setup request, not a hosted connection. The following
 tool names and fields were checked against the installed Executor catalog.
@@ -195,7 +218,7 @@ documented removal/logout flow. Do not remove the separate ChatGPT worker
 connection or unrelated MCP servers. Inventory the intended provider sessions
 again to confirm the bridge is reached through Executor exactly once.
 
-## Acceptance matrix: connection is not completion
+### Acceptance matrix: connection is not completion
 
 Run this matrix independently for direct clients and the Executor route. Record
 client version, provider instance/environment, handshake mode, time, request ID,
@@ -218,11 +241,11 @@ successful lookup, edit, or save. A direct Pages tool test bypasses the bridge a
 cannot satisfy this matrix. Transcript ingestion creates a Page, not a native
 ChatGPT Meetings recording.
 
-## Verify from any Executor-connected client
+### Verify from any Executor-connected client
 
 Ask the client: “Through Executor, find my Spaces Context Bridge connection and call `bridge_status`. Report the actual response.” The client must discover and call the connection, rather than infer success from the saved-connection list. Expect `role: agent`; `worker_connected: false` means the separate ChatGPT event worker is not ready. A successful status call proves routing and authenticated tool execution only. Once the worker is active, run the synthetic lookup/edit/ingest checks above from that same client.
 
-## Repeatable local config checks
+### Repeatable local config checks
 
 From the repository root:
 
