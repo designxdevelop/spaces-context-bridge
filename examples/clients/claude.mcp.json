@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "spaces_context": {
+      "type": "http",
+      "url": "https://bridge.example.invalid/mcp"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development (npm run setup does this for you).
+# Never commit .dev.vars. Values are SHA-256 hashes of the connection codes, not the codes.
+AGENT_LOGIN_HASH=
+WORKER_LOGIN_HASH=
+# Optional: https origin of your deployment (custom domain only; workers.dev is auto-detected
+# by this Worker). Example: https://bridge.example.com
+# PUBLIC_ORIGIN=
