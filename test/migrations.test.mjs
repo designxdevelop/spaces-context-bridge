@@ -102,3 +102,24 @@ test('activity migration preserves legacy registrations and grants all of them a
   for (const f of migrations.slice(1)) db.exec(read('migrations/' + f));
   assert.equal(db.prepare("SELECT last_used FROM client_activity WHERE client='cached'").get().last_used, 42);
 });
+
+
+test('quarantine safely handles a restored 0001-only database before current migrations', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(read('migrations/' + migrations[0]));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='client_activity'").get().n, 0);
+  db.exec("INSERT INTO clients VALUES('client','fixture','[]',1); INSERT INTO tokens VALUES('h','client','worker',9999999999999,'access'); INSERT INTO consents VALUES('consent','csrf','{}',9999999999999); INSERT INTO codes VALUES('code','client','https://chatgpt.com/cb','challenge','worker',9999999999999)");
+  for (const status of ['queued', 'processing', 'completed']) {
+    db.prepare('INSERT INTO requests(id,client,idem,kind,payload,status,result,created,updated,lease,lease_expires) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(status, 'client', status, 'lookup', '{}', status, status === 'completed' ? 'retained result' : null, 1, 1, 'old-lease', 9999999999999);
+  }
+  db.exec(read('maintenance/quarantine-restored-copy.sql'));
+  for (const table of ['tokens', 'clients', 'consents', 'codes', 'client_activity']) assert.equal(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0, table);
+  for (const id of ['queued', 'processing']) {
+    assert.deepEqual({ ...db.prepare('SELECT status,lease,lease_expires FROM requests WHERE id=?').get(id) }, { status: 'failed', lease: null, lease_expires: null });
+  }
+  assert.deepEqual({ ...db.prepare("SELECT status,result FROM requests WHERE id='completed'").get() }, { status: 'completed', result: 'retained result' });
+  for (const f of migrations) db.exec(read('migrations/' + f));
+  assert.deepEqual(shape(db), shape(fresh()));
+  assert.equal(db.prepare("SELECT status FROM requests WHERE id='queued'").get().status, 'failed');
+});

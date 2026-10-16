@@ -628,3 +628,70 @@ test('re-verification after a 410 transition keeps the refused request recoverab
   await cronTick(h.env);
   assert.ok(calls.filter(c => c.parsed.data?.request_id === queued.request_id).length >= 2);
 });
+
+
+test('a renewal started before a 410 must re-verify before reviving the callback', async t => {
+  const clock = useClock(t);
+  let gone = true, release, entered;
+  const resumed = new Promise(resolve => { release = resolve; });
+  const paused = new Promise(resolve => { entered = resolve; });
+  const calls = mockCallback(t, body => {
+    const parsed = JSON.parse(body);
+    return new Response(JSON.stringify({ challenge: parsed.challenge }), { status: parsed.type === 'verification' || !gone ? 200 : 410 });
+  });
+  const h = await workerHarness();
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  const queued = await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'one' }, 'one');
+  const prepare = h.env.DB.prepare.bind(h.env.DB);
+  let held = false;
+  h.env.DB.prepare = statement => {
+    const prepared = prepare(statement);
+    return { bind(...params) {
+      const bound = prepared.bind(...params);
+      return { ...bound, run: async () => {
+        if (!held && statement.includes('INSERT INTO subscriptions')) {
+          held = true; entered(); await resumed;
+        }
+        return bound.run();
+      } };
+    } };
+  };
+  const renewing = modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  await paused;
+  await worker.deliveries(h.env);
+  assert.equal(h.db.prepare('SELECT expires FROM subscriptions').get().expires, 0);
+  gone = false;
+  release();
+  assert.ok((await renewing).body.result.id);
+  assert.equal(calls.filter(c => c.parsed.type === 'verification').length, 2);
+  assert.equal(h.count('deliveries', "status='gone'"), 0);
+  clock.advance(31 * MINUTE);
+  await cronTick(h.env);
+  assert.ok(calls.filter(c => c.parsed.data?.request_id === queued.request_id).length >= 2);
+});
+
+
+test('reconnecting after gone-subscription cleanup recovers only requests within the recovery window', async t => {
+  const clock = useClock(t);
+  let gone = true;
+  const calls = mockCallback(t, body => {
+    const parsed = JSON.parse(body);
+    return new Response(JSON.stringify({ challenge: parsed.challenge }), { status: parsed.type === 'verification' || !gone ? 200 : 410 });
+  });
+  const h = await workerHarness();
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  const recent = await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'recent' }, 'recent');
+  const old = await worker.queue(h.env, { client: 'a' }, 'lookup', { query: 'old' }, 'old');
+  h.db.prepare('UPDATE requests SET created=?,updated=? WHERE id=?').run(clock.now - 25 * 60 * MINUTE, clock.now - 25 * 60 * MINUTE, old.request_id);
+  await worker.deliveries(h.env);
+  await worker.cleanup(h.env);
+  assert.equal(h.count('subscriptions'), 0);
+  assert.equal(h.count('deliveries'), 0);
+  gone = false;
+  await modernRpc(h, 'worker-access', 'events/subscribe', subscribeParams());
+  clock.advance(31 * MINUTE);
+  await cronTick(h.env);
+  assert.ok(calls.filter(c => c.parsed.data?.request_id === recent.request_id).length >= 2);
+  assert.equal(h.count('deliveries', 'request=?', old.request_id), 0);
+  assert.equal(h.count('requests', 'id=?', old.request_id), 1, 'old request remains available for manual reconciliation');
+});

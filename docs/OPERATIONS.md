@@ -13,7 +13,7 @@ The code's seven-day request cleanup uses **creation time**, applies even to unf
 1. Pause request producers and the ChatGPT worker before a consistent backup. Record the code version and schema/migration state without credentials.
 2. Export only the intended database using `npx wrangler d1 export DB --remote --output /private/backup/bridge.sql`, substituting a protected directory. Treat the dump as credentials plus user content; encrypt it and exclude it from Git/cloud shares unless explicitly approved.
 3. Restore first into an isolated, newly created database with no active delivery cron or clients. Follow [D1 import/export](https://developers.cloudflare.com/d1/best-practices/import-export-data/) and validate schema and counts before switching a binding.
-4. Before activating the isolated restored copy, inspect [quarantine-restored-copy.sql](../maintenance/quarantine-restored-copy.sql). With its own `DB` binding selected, run `npx wrangler d1 execute DB --remote --file maintenance/quarantine-restored-copy.sql`. This deletes restored credentials, registrations, subscriptions and outbox rows, and marks unfinished requests failed to prevent automatic replay. Completed results and payloads remain. Run this only on the restored copy with producers, worker and cron paused. Rotate both connection codes, re-register/reconnect clients, and inspect external Pages before submitting replacement work.
+4. Before activating the isolated restored copy, inspect [quarantine-restored-copy.sql](../maintenance/quarantine-restored-copy.sql). With its own `DB` binding selected, run `npx wrangler d1 execute DB --remote --file maintenance/quarantine-restored-copy.sql`. This deletes restored credentials, registrations, subscriptions and outbox rows, and marks unfinished requests failed to prevent automatic replay. Completed results and payloads remain. The script also handles backups with only migration `0001`; after quarantine, apply the current numbered migrations before activating the copy. Run this only on the restored copy with producers, worker and cron paused. Rotate both connection codes, re-register/reconnect clients, and inspect external Pages before submitting replacement work.
 5. Keep the old deployment paused until rollback is no longer needed. Test a synthetic operation before allowing real traffic.
 
 Do not paste a whole dump into an issue or an agent chat. Wrangler secrets are separate from SQL exports; recover or rotate them through your secret-management process. D1 [Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) is another recovery option within the plan's retention window, not a backup of Spaces or local recordings. Restoring an old database can resurrect authorization state and replayable work.
@@ -23,6 +23,29 @@ Do not paste a whole dump into an issue or an agent chat. Wrangler secrets are s
 Back up, pause producers/worker, review release notes and migrations, apply migrations to a restored test copy, then run local and hosted synthetic checks. Apply reviewed production migrations only to the intended binding. A code rollback does not undo a schema migration or Page edit; use a tested compatible code/schema pair. Keep version 0.1.5 until the release owner approves a version change.
 
 Migration `0002` adds registration activity in a separate table, preserving the old client schema for code rollback. Apply numbered migrations through Wrangler once; existing registrations receive one 37-day grace period at upgrade. No authorization or token is granted by that backfill. New unused registrations expire after one hour and may be evicted at the 1,000-client cap. Owner-authorized registrations remain for 37 days after the last consent/token issuance, or while a token row remains. Revocation does not immediately remove the cached registration. After the idle retention window, remove and re-add the MCP connection so its host registers again; signing in with an expired cached client ID is insufficient.
+
+Migration `0002` backfills **every** legacy client because prior authorization history cannot be inferred from missing tokens. A pre-upgrade registration flood at the 1,000-client cap can therefore keep new registration blocked for the 37-day grace period. Do not blanket-delete tokenless registrations: an owner may still cache one after revocation or token expiry.
+
+If capacity must be recovered sooner, pause registrations, keep a protected backup, and have the owner review candidate IDs against their actual client configurations. This query lists tokenless/code-free candidates; it does **not** prove that a client was never authorized or is unused:
+
+```sql
+SELECT c.id,c.name,c.created,a.last_used
+FROM clients c LEFT JOIN client_activity a ON a.client=c.id
+WHERE NOT EXISTS (SELECT 1 FROM tokens t WHERE t.client=c.id)
+  AND NOT EXISTS (SELECT 1 FROM codes k WHERE k.client=c.id)
+ORDER BY c.created;
+```
+
+Only after the owner confirms a specific ID is unused, substitute that reviewed ID in the example below and execute it against the intended binding. Preserve all cached owner IDs. The checks prevent deleting a client that acquired token or code rows since review; they cannot establish owner intent.
+
+```sql
+DELETE FROM clients
+WHERE id='REVIEWED_UNUSED_CLIENT_ID'
+  AND NOT EXISTS (SELECT 1 FROM tokens WHERE client=clients.id)
+  AND NOT EXISTS (SELECT 1 FROM codes WHERE client=clients.id);
+DELETE FROM client_activity
+WHERE NOT EXISTS (SELECT 1 FROM clients WHERE id=client_activity.client);
+```
 
 ## Revoke access and uninstall
 
@@ -52,6 +75,6 @@ Cron re-announces stalled queued requests and expired processing leases after ab
 
 Request idempotency is scoped to a client registration and retained request history. `source_id` is metadata, not a database-wide unique key. A new key, a different OAuth client or seven-day cleanup can produce a new request for the same recording. The ChatGPT worker must inspect source markers before creating a Page; cross-system duplicate prevention is best effort until verified in the hosted acceptance flow.
 
-The HTTP body cap is 256 KiB of serialized UTF-8 JSON, including all fields, metadata and escaping. Oversized requests return 413; split a selected transcript into explicitly identified parts rather than silently truncate it. Transcript and completion-result fields are capped at 40,000 UTF-16 code units; auxiliary fields have smaller limits. A callback returning 410 disconnects that subscription and blocks new requests when no other worker is connected. Reconnect/re-verify the worker callback to resume stalled requests. A 413 rejects only that delivery; a normal TTL refresh leaves it terminal until the subscription is re-verified or its signing secret is rotated.
+The HTTP body cap is 256 KiB of serialized UTF-8 JSON, including all fields, metadata and escaping. Oversized requests return 413; split a selected transcript into explicitly identified parts rather than silently truncate it. Transcript and completion-result fields are capped at 40,000 UTF-16 code units; auxiliary fields have smaller limits. A callback returning 410 disconnects that subscription and blocks new requests when no other worker is connected. Reconnect/re-verify the worker callback to resume eligible stalled requests created within the last 24 hours. Older requests are outside automatic recovery: inspect `get_result` and reconcile external Pages before deciding whether replacement work is needed. Do not blindly submit a fresh idempotency key. A 413 rejects only that delivery; a normal TTL refresh leaves it terminal until the subscription is re-verified or its signing secret is rotated.
 
 Automatic recovery can re-announce an unclaimed request approximately 48 times during its first day per active subscription, in addition to up to five delivery attempts per announcement. Each accepted event may consume ChatGPT usage. Stop monitoring/unsubscribe if processing cannot run. Worker traces default to disabled; query strings are redacted in invocation logging. Do not enable payload or D1-bind logging for transcript traffic. Provider/account log retention settings are separate from request cleanup.

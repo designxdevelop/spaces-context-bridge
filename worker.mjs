@@ -718,22 +718,36 @@ async function events(env, principal, method, params) {
   const ttl = typeof params.ttlMs === 'number' && Number.isFinite(params.ttlMs)
     ? Math.min(Math.max(params.ttlMs, MINUTE), SUBSCRIPTION_MAX_TTL) : SUBSCRIPTION_MAX_TTL;
 
-  // Verification is cached per (principal, url): refreshing a live subscription skips it.
+  // Verification is cached per (principal, url), but the cached decision must
+  // still be live when we write. A concurrent 410 or cleanup requires verification.
   const live = await one(env, 'SELECT id,secret FROM subscriptions WHERE id=? AND client=? AND expires>?', id, principal.client, now());
-  if (!live) await verifyCallback({ id, callback: url, secret: params.delivery.secret });
+  let verified = false;
+  const verify = async () => { await verifyCallback({ id, callback: url, secret: params.delivery.secret }); verified = true; };
+  if (!live) await verify();
 
-  const expires = now() + ttl;
-  await sql(env, `INSERT INTO subscriptions(id,callback,secret,expires,created,client) VALUES(?,?,?,?,?,?)
-    ON CONFLICT(id) DO UPDATE SET
-      previous_secret=CASE WHEN subscriptions.secret<>excluded.secret THEN subscriptions.secret ELSE subscriptions.previous_secret END,
-      rotate_until=CASE WHEN subscriptions.secret<>excluded.secret THEN ? ELSE subscriptions.rotate_until END,
-      secret=excluded.secret, expires=excluded.expires`,
-  id, url, params.delivery.secret, expires, now(), principal.client, now() + SECRET_ROTATION_GRACE).run();
-  // A re-verified or re-keyed callback may accept what it refused with 410/413: hand those
-  // deliveries back to recovery. A plain TTL refresh leaves them terminal.
-  if (!live || live.secret !== params.delivery.secret) {
+  const persist = async () => {
+    const stamp = now(), expires = stamp + ttl;
+    const result = await sql(env, `INSERT INTO subscriptions(id,callback,secret,expires,created,client)
+      SELECT ?,?,?,?,?,? WHERE ? OR EXISTS(
+        SELECT 1 FROM subscriptions WHERE id=? AND client=? AND expires>?)
+      ON CONFLICT(id) DO UPDATE SET
+        previous_secret=CASE WHEN subscriptions.secret<>excluded.secret THEN subscriptions.secret ELSE subscriptions.previous_secret END,
+        rotate_until=CASE WHEN subscriptions.secret<>excluded.secret THEN ? ELSE subscriptions.rotate_until END,
+        secret=excluded.secret, expires=excluded.expires`,
+    id, url, params.delivery.secret, expires, stamp, principal.client, verified ? 1 : 0,
+    id, principal.client, stamp, stamp + SECRET_ROTATION_GRACE).run();
+    return { result, expires };
+  };
+  let saved = await persist();
+  if (changes(saved.result) === 0) {
+    await verify();
+    saved = await persist();
+  }
+  // Re-verification or re-keying resets refusals. A plain TTL refresh does not.
+  if (verified || live.secret !== params.delivery.secret) {
     await sql(env, "UPDATE deliveries SET status='failed',due=0 WHERE subscription=? AND status='gone'", id).run();
   }
+  const expires = saved.expires;
   return { id, refreshBefore: new Date(expires).toISOString(), cursor: null, truncated: false };
 }
 
