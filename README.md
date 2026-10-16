@@ -1,12 +1,12 @@
 # Spaces Context Bridge
 
-Let your coding agent read and update your ChatGPT Spaces, and save the meetings you record in Superwhisper there.
+Read and edit your ChatGPT Spaces from Claude Code, Codex, OpenCode and other MCP clients.
 
-Spaces Context Bridge is a small open-source MCP server that runs on your Mac. Connect Codex, Claude Code, OpenCode or T3 Code to it, and your agent can look things up in your Spaces Pages, make a careful edit, or save meeting notes and transcripts into the Space you name. You run it yourself under the MIT license. There's no hosted service and no account to sign up for.
+Spaces Context Bridge is an open-source MCP server that gives your other agents access to your ChatGPT Spaces. Search and read Pages, make bounded edits, and save selected notes or transcripts as new Pages in a Space you choose. The recommended adapter runs on your Mac and uses your signed-in Codex CLI for Spaces access, even when Claude Code or another client is doing the work. Connect each client directly or share the connection through Executor.
 
 ## Why it exists
 
-I wanted a Granola-style setup built from tools I already use. Superwhisper records meetings on my Mac, ChatGPT Spaces holds the notes, and whichever coding agent I'm working in can pull that context or file new notes without me copying text between apps.
+My project context lives in ChatGPT Spaces, but I work with several agents. I wanted Claude and my other coding agents to consult those same Pages and update them without copying context between apps. Spaces stays the shared notebook; I can choose which agent works with it.
 
 The first version sent every request through a queue to a ChatGPT cloud task, so each one took somewhere between 40 seconds and a few minutes. The direct adapter calls the same Spaces tools through the Codex CLI you're already signed in to, with no queue and no extra model turn. In testing, requests finished in seconds. See the [evidence](docs/PRODUCT.md#evidence).
 
@@ -28,9 +28,13 @@ npm run direct:setup -- --allow-space page_space_EXAMPLE
 npm run direct:start
 ```
 
-Add [the agent prompt](prompts/DIRECT_AGENT_PROMPT.txt) to your agent's standing instructions and ask:
+Once connected, ask your agent:
 
-> Save my latest meeting notes in Personal Notes.
+> Find the launch plan in my Product Space and summarize the open decisions with source links.
+
+Or request a bounded edit:
+
+> In the Launch Plan Page, replace “Target date: October 20” with “Target date: October 23”. Leave everything else unchanged.
 
 [Direct setup](docs/DIRECT_SETUP.md) covers each step in detail. If you'd rather have your agent do the setup, use the [setup prompt](docs/SETUP_WITH_AGENT.md).
 
@@ -39,16 +43,21 @@ Add [the agent prompt](prompts/DIRECT_AGENT_PROMPT.txt) to your agent's standing
 - **Read.** List Spaces, list and search Pages, read a Page.
 - **Edit.** Replace one exact span of text in one block of a Page, checked against a fresh read and verified afterward.
 - **Save.** Create a Page with meeting notes or a transcript, verbatim, with a stable source ID so a retry doesn't create a duplicate.
-- **Meetings.** Superwhisper, through its own MCP server, is the default source. ChatGPT Meetings list and fetch tools are also available when requested; fetching a real Meeting note remains unverified.
 
 It won't delete, share, publish, move or message anything. It won't write to a Space you haven't allowed, sync recordings in the background, or forward arbitrary tool calls.
+
+## Optional: meeting notes
+
+You can also use Spaces as a home for meeting notes. Connect Superwhisper's separate MCP server, then ask your agent to save selected notes or a transcript into a named Space. Superwhisper is optional; reading and editing existing Spaces Pages needs no recording app.
+
+[The agent prompt](prompts/DIRECT_AGENT_PROMPT.txt) configures Superwhisper as the default meeting source and ChatGPT Meetings as an additional source when requested. ChatGPT Meetings list and fetch tools are included; fetching a real Meeting note remains unverified. Imports are on demand, with no automatic recording sync. See [meeting setup](docs/DIRECT_SETUP.md#meeting-sources).
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  SW["Superwhisper MCP<br/>recordings on your Mac"] --> A["Your agent"]
-  A -->|recommended| D["Direct adapter<br/>127.0.0.1:4791"]
+  A["Claude Code / Codex / OpenCode / T3 Code"] -->|recommended| D["Direct adapter<br/>127.0.0.1:4791"]
+  SW["Superwhisper MCP<br/>optional meeting source"] -.-> A
   D --> C["Codex CLI<br/>your sign-in"]
   C --> S["ChatGPT Spaces Pages"]
   A -.->|optional, async| W["Cloud relay<br/>Cloudflare Worker + D1"]
@@ -60,7 +69,7 @@ Your agent decides what to do and calls the adapter's tools. The adapter makes a
 
 ## Privacy
 
-Your notes don't stay on your Mac. When you save a meeting, its text goes from Superwhisper to your agent's model provider, then through the local adapter and Codex to OpenAI, where the Page lives. Your agent's provider sees whatever you ask it to handle. The adapter keeps only IDs, hashes and status in a local journal, and its logs contain short categories, not content. It relies on Codex's own sign-in and doesn't extract those credentials. Details are in [operations](docs/OPERATIONS.md#direct-adapter) and the [security policy](SECURITY.md).
+Spaces Pages live at OpenAI. When your agent reads a Page, its content is returned to that agent and its model provider; edits and saves go through the local adapter and Codex back to Spaces. Optional meeting imports also send the selected recording text to your agent's provider and OpenAI. The adapter keeps only IDs, hashes and status in a local journal, and its logs contain short categories, not content. It relies on Codex's own sign-in and doesn't extract those credentials. Details are in [operations](docs/OPERATIONS.md#direct-adapter) and the [security policy](SECURITY.md).
 
 ## Optional: cloud relay
 
