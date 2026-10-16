@@ -1,6 +1,6 @@
 # Launch post — DRAFT, NOT APPROVED FOR PUBLICATION
 
-Prepared October 15, 2026. Do not post until the release owner approves licensing, publication and the final acceptance evidence. The draft describes demonstrated synthetic flows in a private release candidate. Update it only with verified results; do not invent a launch date or demo.
+Prepared October 15, 2026. MIT / Design X Develop is approved. Do not post until the release owner approves publication and the final acceptance evidence. The draft describes demonstrated synthetic flows in a private release candidate. Update it only with verified results; do not invent a launch date or demo.
 
 ## Draft
 

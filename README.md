@@ -6,7 +6,7 @@ The bridge has **no direct Spaces access**. It stores requests in Cloudflare D1;
 
 ## Release status
 
-Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and all three synthetic bridge operations through **T3/Codex → Executor → bridge → ChatGPT cloud event task → actual Spaces Pages** have passed. Lookup sources, the bounded Page edit and the verbatim transcript Page were independently verified. No local daemon was needed for this cloud route. This does not establish production readiness, every client, automatic transcript sync or the public deployment button. See [evidence and remaining gates](docs/RELEASE_REVIEW.md). MIT is proposed, pending owner review; see [LICENSE](LICENSE).
+Fresh Cloudflare CLI deployment, hosted OAuth/protocol checks, and all three synthetic bridge operations through **T3/Codex → Executor → bridge → ChatGPT cloud event task → actual Spaces Pages** have passed. Lookup sources, the bounded Page edit and the verbatim transcript Page were independently verified. No local daemon was needed for this cloud route. This does not establish production readiness, every client, automatic transcript sync or the public deployment button. See [evidence and remaining gates](docs/RELEASE_REVIEW.md). Licensed under MIT, copyright 2026 Design X Develop; see [LICENSE](LICENSE).
 
 ## What it is intended to do
 

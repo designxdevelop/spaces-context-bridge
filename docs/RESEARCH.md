@@ -34,6 +34,6 @@ Use Anthropic's [remote connector setup](https://support.claude.com/en/articles/
 
 Cloudflare documents the [deployment button](https://developers.cloudflare.com/workers/platform/deploy-buttons/), [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), [database export/import](https://developers.cloudflare.com/d1/best-practices/import-export-data/) and [Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/). Check current account limits before relying on a free tier or a recovery window.
 
-## Unresolved release evidence
+## Acceptance coverage
 
-Fresh-resource deployment and migrations; public-origin handling in the final Worker/config; actual custom-event subscription and renewal; real agent-to-worker-to-Page round trips; installed Superwhisper Meetings-record coverage; direct and optional aggregated client compatibility; license approval and private security contact. Do not replace any of these with a local schema/model test or an unrelated direct Pages experiment.
+See [release review](RELEASE_REVIEW.md) for the exact revisions and clients tested. Fresh-resource CLI deployment and hosted OAuth/protocol checks passed on reviewed main; the three synthetic bridge-to-Page round trips passed on the recorded isolated review revisions. Remaining coverage includes the public button/fresh-human signup, installed Superwhisper recording selection, additional live clients, personal event activation and interrupted external-write recovery. Finalize a private security-reporting channel before announcement. A local model test or an unrelated direct Pages experiment does not establish these flows.

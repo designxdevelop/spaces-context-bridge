@@ -2,7 +2,7 @@
 
 ## 0.1.5 — unreleased, private release preparation
 
-Prepared documentation for the single-owner MCP relay, scoped ChatGPT worker prompt, client setup, data handling, verification, and proposed deployment workflow. Added a design-only opt-in transcript companion and conditional launch draft. MIT licensing remains pending owner approval.
+Prepared documentation for the single-owner MCP relay, scoped ChatGPT worker prompt, client setup, data handling, verification, and proposed deployment workflow. Added a design-only opt-in transcript companion and conditional launch draft. Adopted the MIT license with copyright attributed to Design X Develop.
 
 The inherited implementation includes asynchronous lookup/edit/transcript requests, OAuth agent/worker roles, event subscriptions, delivery retries, leases, and request idempotency. Local model tests are separate from real Cloudflare and client acceptance tests. Native event-worker activation and all three synthetic bridge-mediated operations passed through the T3/Codex Executor review route, with independent source/Page verification. Direct Pages fixture preparation remains separate evidence.
 
