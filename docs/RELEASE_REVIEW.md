@@ -4,7 +4,7 @@ This release ships the local Spaces MCP adapter. Cloud relay source, deployment 
 
 ## Current package
 
-The direct runtime and its six test files are unchanged from the reviewed 0.2.0 package. Project version 0.3.0 identifies the simplified distribution; the adapter's component version remains 0.1.1. Setup, configuration, owner-key handling, write restrictions and journal format are unchanged. Standard `setup`/`start` scripts point at the same entrypoints as the retained `direct:setup`/`direct:start` aliases.
+The direct runtime is unchanged from the reviewed 0.2.0 package; the test audit is recorded below. Project version 0.3.0 identifies the simplified distribution; the adapter's component version remains 0.1.1. Setup, configuration, owner-key handling, write restrictions and journal format are unchanged. Standard `setup`/`start` scripts point at the same entrypoints as the retained `direct:setup`/`direct:start` aliases.
 
 All 98 automated tests pass: 96 adapter/setup/transport/meeting contracts and two release-hygiene tests. Cloud-specific tests were removed alongside their implementation, rather than counted as coverage for the local adapter. CI runs the same verification command on Node 22 and 24, with no npm dependencies.
 
