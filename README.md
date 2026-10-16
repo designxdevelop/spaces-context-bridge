@@ -2,17 +2,15 @@
 
 Read and edit your ChatGPT Spaces from Claude Code, Codex, OpenCode and other MCP clients.
 
-Spaces Context Bridge runs on your Mac and connects your agents to the Pages already in your ChatGPT Spaces. Use the same project context across agents: search for a decision, read the source, or make a bounded edit without copying text between apps.
+Keep project context in Spaces and use it from whichever agent you work with. Search for a decision, read the source, or edit a Page without copying text between apps. Spaces Context Bridge runs on your Mac.
 
-Your agent connects over MCP. The adapter calls Spaces tools through your signed-in Codex CLI and returns the result, without starting another model turn. You can connect each client directly or share one connection through Executor.
+The adapter calls Spaces tools through your signed-in Codex CLI, without starting another model turn. You can connect each client directly or share one connection through Executor.
 
 ## What you can do
 
 - **Find context:** list Spaces, search Pages and read their contents with source links.
 - **Edit a Page:** replace one exact span in one block, checked against a fresh read and verified afterward.
 - **Save notes:** create a Page containing selected notes or a transcript in a Space you choose, with duplicate protection for retries.
-
-For example:
 
 > Find the launch plan in my Product Space and summarize the open decisions with source links.
 
@@ -32,7 +30,7 @@ npm start
 No npm dependencies are required. Setup creates a private owner key and a read-only configuration; the server listens at `http://127.0.0.1:4791/mcp`.
 
 1. [Connect your client](docs/CLIENTS.md) using the key as a bearer token. Keep it out of chat and committed configuration.
-2. Ask your agent to list your Spaces. Reads work immediately if the source tools are available.
+2. Ask your agent to list your Spaces.
 3. Stop the server, allow writes to the Spaces you choose, then restart:
 
 ```sh
@@ -57,7 +55,7 @@ flowchart LR
   C --> D["ChatGPT Spaces Pages"]
 ```
 
-The adapter exposes a fixed set of tools and performs no model inference of its own. Observed reads and writes completed in seconds; timings are observations, not guarantees. The Mac must stay awake with the server running and Codex signed in. See [architecture and limits](docs/PRODUCT.md) and [test evidence](docs/RELEASE_REVIEW.md).
+Observed reads and writes completed in seconds; these timings are not guarantees. The Mac must stay awake with the server running and Codex signed in. See [architecture and limits](docs/PRODUCT.md) and [test evidence](docs/RELEASE_REVIEW.md).
 
 ## Optional: meeting notes
 
@@ -71,7 +69,7 @@ Pages live at OpenAI. Your agent and its model provider see the content you ask 
 
 The adapter stores IDs, hashes and status in a private journal, without note text. Reads cover accessible current Space Pages; writes require an explicit Space allowlist. It has no delete, share, publish, move or messaging tools. Uncertain writes must be reconciled before retrying.
 
-See [security](SECURITY.md) for trust boundaries and private reporting, and [operations](docs/OPERATIONS.md) for backup, upgrade, key rotation and uninstall instructions. Each installation uses its owner's accounts and storage; there is no service operated by the maintainers. Your ChatGPT and agent-provider terms and usage charges apply.
+See [security](SECURITY.md) for trust boundaries and private reporting, and [operations](docs/OPERATIONS.md) for backup, upgrade, key rotation and uninstall instructions. You run it under your own accounts; the maintainers host no service. Your ChatGPT and agent-provider terms and usage charges apply.
 
 ## Support and development
 

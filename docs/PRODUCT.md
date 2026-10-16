@@ -1,6 +1,6 @@
 # Architecture and limits
 
-Spaces Context Bridge gives MCP clients access to existing ChatGPT Spaces Pages. It runs locally and uses the owner's signed-in Codex app-server to call a fixed set of source tools. The requesting agent does the reasoning; the adapter validates arguments, calls tools and verifies writes. It never starts a model turn.
+The adapter calls the owner's signed-in Codex app-server from a local Node process. It validates arguments and verifies writes; the requesting agent does the reasoning. The adapter never starts a model turn.
 
 ## Tool boundary
 
@@ -30,7 +30,7 @@ Superwhisper reads and synthetic Spaces writes were verified separately. A real 
 
 ## Runtime and privacy
 
-The runtime needs Node.js 22.13+, an installed Codex CLI signed in with a ChatGPT account, and callable Spaces tools for that account. Live use was verified on macOS with Codex CLI 0.163.0, through T3 Code/Codex and Executor. Other client configurations are documented; universal client and account availability is not established.
+The runtime needs Node.js 22.13+, an installed Codex CLI signed in with a ChatGPT account, and callable Spaces tools for that account. Live use was verified on macOS with Codex CLI 0.163.0, through T3 Code/Codex and Executor. Other client configurations and fresh-account access remain unverified.
 
 The Mac must stay awake and the server must keep running. Long-running sessions across sign-in expiry and platforms other than macOS remain unverified. Source-tool changes can affect compatibility; the adapter reports upstream failures instead of silently switching execution paths.
 

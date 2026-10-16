@@ -1,7 +1,5 @@
 # Operations
 
-How to run, back up, upgrade and remove the local Spaces Context Bridge adapter.
-
 ## Direct adapter
 
 ### What runs where
@@ -52,7 +50,7 @@ Stop the server, pull and review the new version, then start the server and call
 
 ### Replace the key
 
-Do this if the key leaks or you lose it. Rerunning setup on its own never replaces an existing key, so:
+If the key leaks or is lost, replace it without regenerating the configuration:
 
 1. Stop the server and disconnect affected clients. Preserve `config.json` and the entire journal at its configured `stateDir`.
 2. Generate a fresh cryptographically random 32-byte base64url key in a protected local operation, without displaying it. Replace only the file named by `tokenFile` in your existing config, retaining owner-only permissions (`0600`) and ownership. Never delete or regenerate the config to rotate a key: that can lose Page restrictions, a custom port, or the journal path.

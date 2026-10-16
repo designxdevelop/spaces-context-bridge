@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createBridge, saveKey, saveFingerprint, buildTranscriptBlocks, LIMITS } from '../direct/adapter.mjs';
+import { createBridge, saveFingerprint, LIMITS } from '../direct/adapter.mjs';
 import { RpcError } from '../direct/rpc.mjs';
 
 const hash = (s) => createHash('sha256').update(s).digest('hex');
@@ -22,7 +22,7 @@ async function fixture(t) {
   t.after(() => fs.rm(stateDir, { recursive: true, force: true }));
   const calls = [], pages = new Map(), keys = new Map(), hooks = {};
   const upstream = {
-    async callTool(tool, args, opts) {
+    async callTool(tool, args) {
       calls.push({ tool, args: structuredClone(args) });
       if (hooks[tool]) { const r = await hooks[tool](args); if (r !== undefined) return r; }
       if (tool === 'read_page') {
@@ -38,53 +38,11 @@ async function fixture(t) {
     },
     async inventory() { return { ok: true }; },
   };
-  const logs = [];
-  const bridge = createBridge({ upstream, stateDir, env: { BRIDGE_ALLOWED_SPACE_IDS: SPACE }, log: (m) => logs.push(m) });
+  const bridge = createBridge({ upstream, stateDir, env: { BRIDGE_ALLOWED_SPACE_IDS: SPACE } });
   const call = async (name, args) => (await bridge.callTool(name, args)).structuredContent;
-  return { stateDir, calls, pages, keys, hooks, bridge, call, logs, creates: () => calls.filter((c) => c.tool === 'create_page') };
+  return { stateDir, calls, pages, keys, hooks, bridge, call, creates: () => calls.filter((c) => c.tool === 'create_page') };
 }
 const errorIs = (r, code) => { assert.equal(r.ok, false); assert.equal(r.error.code, code); };
-
-test('save_meeting_notes is advertised with exact strict args and no transcript wording as its role', async (t) => {
-  const f = await fixture(t);
-  const tool = f.bridge.listTools().find((x) => x.name === 'save_meeting_notes');
-  assert.deepEqual(tool.inputSchema.required, ['space_id', 'title', 'recorded_at', 'source_id', 'notes']);
-  assert.deepEqual(Object.keys(tool.inputSchema.properties).sort(), ['notes', 'recorded_at', 'source_id', 'space_id', 'title']);
-  assert.equal(tool.inputSchema.additionalProperties, false);
-  assert.equal(tool.annotations.readOnlyHint, false);
-  assert.match(tool.description, /^Preferred Spaces destination for a selected meeting's notes\/summary/);
-  assert.match(tool.description, /NOT a transcript/);
-  assert.match(f.bridge.listTools().find((x) => x.name === 'save_transcript').description, /use save_meeting_notes instead/);
-});
-
-test('notes create a verified Page labelled as notes, preserved verbatim, with a hash-only journal', async (t) => {
-  const f = await fixture(t);
-  const r = await f.call('save_meeting_notes', NOTES);
-  assert.equal(r.status, 'created'); assert.equal(r.verified, true); assert.equal(r.kind, 'notes');
-  const [c] = f.creates();
-  assert.equal(c.args.idempotency_key, saveKey(NOTES.source_id));
-  assert.deepEqual(c.args.initial_blocks.slice(0, 2), ['Recorded at: 2026-10-16T12:00:00Z', 'Source ID: `superwhisper:rec-1:notes`']);
-  assert.match(c.args.initial_blocks[2], /^Meeting notes \(saved notes\/summary, not a verbatim transcript\)\. Length \d+ characters, SHA-256: `[0-9a-f]{64}`$/);
-  assert.ok(!c.args.initial_blocks.some((b) => /Verbatim transcript/.test(b)));
-  assert.equal(c.args.initial_blocks.slice(3).map((b) => b.replace(/^```text\n|\n```$/g, '')).join(''), NOTES.notes);
-  const file = path.join(f.stateDir, 'saves', `${c.args.idempotency_key}.json`);
-  assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
-  const journal = await fs.readFile(file, 'utf8');
-  for (const secret of [NOTES.notes, NOTES.title, NOTES.source_id]) assert.ok(!journal.includes(secret) && !JSON.stringify(f.logs).includes(secret));
-  assert.equal(JSON.parse(journal).kind, 'notes');
-  assert.equal(JSON.parse(journal).notesSha256, hash(NOTES.notes));
-});
-
-test('same notes source retry returns the original Page with no duplicate create', async (t) => {
-  const f = await fixture(t);
-  const first = await f.call('save_meeting_notes', NOTES);
-  const again = await f.call('save_meeting_notes', NOTES);
-  assert.equal(again.status, 'already_saved'); assert.equal(again.page_id, first.page_id);
-  assert.equal(f.creates().length, 1);
-  errorIs(await f.call('save_meeting_notes', { ...NOTES, notes: 'changed' }), 'source_conflict');
-  errorIs(await f.call('save_meeting_notes', { ...NOTES, space_id: 'space_other' }), 'space_not_allowed');
-  assert.equal(f.creates().length, 1);
-});
 
 test('one source_id cannot be saved as both notes and transcript; distinct artifact IDs coexist', async (t) => {
   for (const order of [['notes', 'transcript'], ['transcript', 'notes']]) {
@@ -113,17 +71,9 @@ test('kind is not caller-controlled and tools reject each other\'s argument', as
   assert.equal(f.creates().length, 0);
 });
 
-test('old transcript identity, fingerprints and blocks are unchanged', async (t) => {
+test('transcript fingerprints retain the pre-notes journal identity', () => {
+  // Existing journals must remain usable after adding notes as a distinct artifact.
   assert.equal(saveFingerprint(TRANSCRIPT), hash(JSON.stringify([TRANSCRIPT.space_id, TRANSCRIPT.title, TRANSCRIPT.recorded_at, TRANSCRIPT.source_id, TRANSCRIPT.transcript])));
-  assert.notEqual(saveFingerprint({ ...NOTES, notes: 'a' }), saveFingerprint({ ...NOTES, transcript: 'a', notes: undefined }));
-  const blocks = buildTranscriptBlocks(TRANSCRIPT);
-  assert.match(blocks[2], /^Verbatim transcript\. Length 19 characters/);
-  const f = await fixture(t);
-  const r = await f.call('save_transcript', TRANSCRIPT);
-  assert.equal(r.status, 'created'); assert.equal(r.kind, undefined);
-  assert.deepEqual(f.creates()[0].args.initial_blocks, blocks);
-  const journal = JSON.parse(await fs.readFile(path.join(f.stateDir, 'saves', `${saveKey(TRANSCRIPT.source_id)}.json`), 'utf8'));
-  assert.equal(journal.transcriptSha256, hash(TRANSCRIPT.transcript));
 });
 
 test('notes: disallowed Space, size and unsupported fences fail before any write or journal claim', async (t) => {

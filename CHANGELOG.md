@@ -6,6 +6,8 @@ The current project now ships one local MCP adapter for reading and editing Chat
 
 Setup and start now have standard `npm run setup` and `npm start` commands; the `direct:setup` and `direct:start` aliases remain compatible. The direct runtime, private configuration format, owner key and save journal are unchanged. Verification runs the adapter tests and release-hygiene scan without npm dependencies. Superwhisper and ChatGPT Meetings remain optional sources.
 
+Consolidated redundant tool-schema, description and mapping tests under behavioral owners, added an HTTP-to-RPC notes-save journey, and tightened repeated documentation. No runtime behavior changed during this audit.
+
 ## 0.2.0 — October 16, 2026
 
 The local direct MCP adapter is now included in the public source and is the recommended route for interactive use. It calls the signed-in Codex app-server without starting another model turn or waiting for a ChatGPT event task. Superwhisper remains a separate meeting source; selected meeting notes and raw transcripts can be saved directly into an explicitly chosen Space. ChatGPT Meetings is an additional read source.

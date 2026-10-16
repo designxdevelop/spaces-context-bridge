@@ -1,6 +1,6 @@
 # Set up with your agent
 
-If you'd rather not run the steps yourself, copy [the setup prompt](../prompts/SETUP_AGENT_PROMPT.txt) into the coding agent you want to use. Fill in the choices at the top, or let the agent ask. It sets up the local adapter for Spaces reads and bounded edits; meeting sources are optional.
+Copy [the setup prompt](../prompts/SETUP_AGENT_PROMPT.txt) into your coding agent and fill in the choices at the top. Meeting sources are optional.
 
 You still do the parts that need a human: signing in to Codex, optional Superwhisper or Executor, entering keys into private credential forms, and choosing which Spaces are writable. The agent should never ask you to paste a key into the chat.
 
@@ -27,7 +27,7 @@ Meeting sources: Superwhisper, plus ChatGPT Meetings when I ask
 
 The agent adds a personal Executor connection to `http://127.0.0.1:4791/mcp` and asks you to enter the key in Executor's private credential form. It keeps the connection out of shared catalogs and leaves existing connections in place.
 
-## What counts as done (direct)
+## Check the result
 
 - `bridge_direct_status` and `list_spaces` return real results through each client you connected, not just a saved connection.
 - `bridge_direct_status` shows the agreed allowlist. A fresh setup with none is read-only; existing permissions are preserved unless you explicitly remove them from `allowedSpaceIds` and restart.

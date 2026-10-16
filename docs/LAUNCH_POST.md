@@ -1,6 +1,6 @@
 # Launch post (draft)
 
-**Draft. Not approved for publication.** Don't post this without the owner's separate sign-off. Capabilities and separately tested source/destination checks are distinguished below; no real recording import has been verified end to end.
+**Unpublished draft.** A real recording import has not been verified end to end.
 
 ## Post
 

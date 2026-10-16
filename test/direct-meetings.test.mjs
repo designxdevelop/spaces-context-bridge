@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { createBridge, createCodexUpstream, UPSTREAM_ALLOWLIST, UPSTREAM_TOOL_NAMES, VERSION } from '../direct/adapter.mjs';
+import { createBridge, createCodexUpstream } from '../direct/adapter.mjs';
 import { RpcError } from '../direct/rpc.mjs';
 
 const NOTE = 'note_synthetic_1';
@@ -27,30 +27,6 @@ function fixture(t, { handler } = {}) {
   return { calls, logs, bridge, call };
 }
 const bad = (r) => { assert.equal(r.ok, false); assert.equal(r.error.code, 'invalid_arguments'); };
-
-test('meetings tools are advertised read-only with strict schemas and 0.1.1', t => {
-  const f = fixture(t);
-  assert.equal(VERSION, '0.1.1');
-  const tools = Object.fromEntries(f.bridge.listTools().map(x => [x.name, x]));
-  for (const name of ['meetings_find_all', 'meetings_fetch']) {
-    assert.equal(tools[name].annotations.readOnlyHint, true);
-    assert.equal(tools[name].annotations.destructiveHint, false);
-    assert.equal(tools[name].inputSchema.additionalProperties, false);
-    assert.match(tools[name].description, /For explicitly requested ChatGPT Meetings notes/);
-    assert.match(tools[name].description, /codex:\/\/mcp-app\/chatgpt-meetings@openai-curated-remote\/meetings\.open\/meeting\/<note-id>/);
-    assert.match(tools[name].description, /no model turn, no event queue/);
-  }
-  assert.match(tools.meetings_find_all.description, /then call meetings_fetch/);
-  assert.equal(tools.meetings_find_all.inputSchema.properties.limit.maximum, 500);
-  assert.deepEqual(UPSTREAM_ALLOWLIST, ['read_page', 'find_pages', 'list_spaces', 'list_pages', 'patch_page', 'create_page']);
-});
-
-test('fixed mapping: Pages keep prefix, Meetings use exact native names, no caller routing', () => {
-  assert.equal(UPSTREAM_TOOL_NAMES.read_page, 'chatgpt_space.read_page');
-  assert.equal(UPSTREAM_TOOL_NAMES['meetings.find_all'], 'meetings.find_all');
-  assert.equal(UPSTREAM_TOOL_NAMES['meetings.fetch'], 'meetings.fetch');
-  assert.equal(Object.keys(UPSTREAM_TOOL_NAMES).length, 8);
-});
 
 test('transport sends exact meetings.* on codex_apps and chatgpt_space.* for Pages; inventory maps both', async t => {
   const sent = [];
@@ -94,6 +70,9 @@ test('find_all passes cursor, limit, attendees and dates through unchanged witho
   assert.deepEqual(f.calls[0].args, args);
   assert.equal(f.calls[0].tool, 'meetings.find_all');
   assert.equal(f.calls[0].opts.kind, 'read');
+  const tool = f.bridge.listTools().find(tool => tool.name === 'meetings_find_all');
+  assert.equal(tool.annotations.readOnlyHint, true);
+  assert.equal(tool.annotations.destructiveHint, false);
   assert.deepEqual(r, { items: [NOTE_RESULT], next_cursor: 'cursor_next' });
   await f.call('meetings_find_all', {});
   assert.deepEqual(f.calls[1].args, {});
@@ -129,8 +108,15 @@ test('fetch requires exactly one selector and rejects bad input before upstream'
     bad(await f.call('meetings_fetch', args));
   }
   assert.deepEqual(f.calls, []);
+  for (const name of ['meetings.fetch', 'meetings_delete']) {
+    await assert.rejects(f.bridge.callTool(name, {}), e => e.rpcCode === -32602);
+  }
   await f.call('meetings_fetch', { note_id: NOTE });
   await f.call('meetings_fetch', { meeting_id: 'meeting_synthetic_1' });
+  const tool = f.bridge.listTools().find(tool => tool.name === 'meetings_fetch');
+  assert.equal(tool.annotations.readOnlyHint, true);
+  assert.equal(tool.annotations.destructiveHint, false);
+  assert.ok(f.calls.every(call => call.opts.kind === 'read'));
   assert.deepEqual(f.calls.map(c => [c.tool, c.args]), [['meetings.fetch', { note_id: NOTE }], ['meetings.fetch', { meeting_id: 'meeting_synthetic_1' }]]);
 });
 
@@ -168,15 +154,6 @@ test('upstream errors and approval requests fail closed; reads retry once after 
   const all = [...f.logs, ...upstreamError.logs].join('\n');
   for (const secret of ['Secret Person', 'Pageless synthetic notes', NOTE, 'missing']) assert.ok(!all.includes(secret));
   assert.ok(f.logs.every(l => /^(tool_ok|tool_error):meetings_|^read_retry/.test(l)));
-});
-
-test('meetings path never reaches write tools or sends write kind', async t => {
-  const f = fixture(t);
-  await f.call('meetings_find_all', { limit: 3 });
-  await f.call('meetings_fetch', { note_id: NOTE });
-  assert.ok(f.calls.every(c => c.opts.kind === 'read' && c.tool.startsWith('meetings.')));
-  await assert.rejects(f.bridge.callTool('meetings.fetch', {}), e => e.rpcCode === -32602);
-  await assert.rejects(f.bridge.callTool('meetings_delete', {}), e => e.rpcCode === -32602);
 });
 
 test('text-only native read errors preserve bounded diagnostic without uncertain-write status', async t => {

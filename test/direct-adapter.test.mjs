@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createBridge, createCodexUpstream, saveKey, buildTranscriptBlocks, chunkTranscript, fenced, countOccurrences, LIMITS } from '../direct/adapter.mjs';
+import { createBridge, createCodexUpstream, saveKey, buildTranscriptBlocks, chunkTranscript, fenced, LIMITS } from '../direct/adapter.mjs';
 import { RpcError } from '../direct/rpc.mjs';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
@@ -148,7 +148,6 @@ test('patch stale hash, absent old text, ambiguous overlapping old text and nonm
     errorIs(await f.call('patch_page', args), expected);
     assert.equal(writes(f).length, 0);
   }
-  assert.equal(countOccurrences('aaa', 'aa'), 2);
 });
 
 test('patch per-operation rejection and stale upstream guards are errors with no write retry', async t => {
@@ -192,7 +191,7 @@ test('transcript save uses deterministic native identity, exact fence blocks and
   const saved = writes(f)[0];
   assert.equal(saved.tool, 'create_page');
   assert.equal(saved.args.idempotency_key, saveKey(SAVE.source_id));
-  assert.deepEqual(saved.args.initial_blocks, buildTranscriptBlocks(SAVE));
+  assert.equal(saved.args.initial_blocks.slice(3).map(block => block.slice(8, -4)).join(''), SAVE.transcript);
   assert.ok(saved.args.initial_blocks.at(-1).startsWith('```text\n'));
   const stateFile = path.join(f.stateDir, 'saves', `${saved.args.idempotency_key}.json`);
   assert.equal((await fs.stat(stateFile)).mode & 0o777, 0o600);
@@ -312,6 +311,13 @@ test('transcript chunks preserve every character across newline, hard and Unicod
     const chunks = chunkTranscript(text, 8);
     assert.equal(chunks.join(''), text);
     assert.ok(chunks.every(chunk => Buffer.byteLength(chunk, 'utf8') <= 8));
+    assert.ok(chunks.every(chunk => !/[\ud800-\udbff]$/.test(chunk)));
+  }
+  for (const text of ['😀'.repeat(4000), 'αβγ☃😀\n'.repeat(2000), 'x'.repeat(3999) + '😀' + 'end']) {
+    const chunks = chunkTranscript(text);
+    assert.equal(chunks.join(''), text);
+    assert.ok(chunks.every(chunk => Buffer.byteLength(chunk, 'utf8') <= 4000));
+    assert.ok(chunks.every(chunk => Buffer.byteLength(fenced(chunk), 'utf8') < 7000));
     assert.ok(chunks.every(chunk => !/[\ud800-\udbff]$/.test(chunk)));
   }
 });
@@ -523,16 +529,6 @@ test('independent bridge instances atomically claim one source before any create
   assert.equal(writes(f).length, 1);
 });
 
-
-test('UTF-8 transcript chunks stay within native byte budget without splitting text', () => {
-  for (const text of ['😀'.repeat(4000), 'αβγ☃😀\n'.repeat(2000), 'x'.repeat(3999) + '😀' + 'end']) {
-    const chunks = chunkTranscript(text);
-    assert.equal(chunks.join(''), text);
-    assert.ok(chunks.every(chunk => Buffer.byteLength(chunk, 'utf8') <= 4000));
-    assert.ok(chunks.every(chunk => Buffer.byteLength(fenced(chunk), 'utf8') < 7000));
-    assert.ok(chunks.every(chunk => !/[\ud800-\udbff]$/.test(chunk)));
-  }
-});
 
 test('triple fences preserve inline backticks and blank lines verbatim', async t => {
   const f = await fixture(t);

@@ -6,9 +6,11 @@ This release ships the local Spaces MCP adapter. Cloud relay source, deployment 
 
 The direct runtime and its six test files are unchanged from the reviewed 0.2.0 package. Project version 0.3.0 identifies the simplified distribution; the adapter's component version remains 0.1.1. Setup, configuration, owner-key handling, write restrictions and journal format are unchanged. Standard `setup`/`start` scripts point at the same entrypoints as the retained `direct:setup`/`direct:start` aliases.
 
-All 104 remaining automated tests pass: 102 adapter/setup/transport/meeting contracts and two release-hygiene tests. Cloud-specific tests were removed alongside their implementation, rather than counted as coverage for the local adapter. CI runs the same verification command on Node 22 and 24, with no npm dependencies.
+All 98 automated tests pass: 96 adapter/setup/transport/meeting contracts and two release-hygiene tests. Cloud-specific tests were removed alongside their implementation, rather than counted as coverage for the local adapter. CI runs the same verification command on Node 22 and 24, with no npm dependencies.
 
-A fresh dependency-free source copy also passed all 104 tests and both canonical setup/start commands. It generated new private configuration on a separate temporary port, refused unauthenticated access and exposed all ten tools. This 0.3.0 check made no upstream calls and changed no personal configuration.
+A fresh dependency-free source copy also passed all 98 tests and both canonical setup/start commands. It generated new private configuration on a separate temporary port, refused unauthenticated access and exposed all ten tools. This 0.3.0 check made no upstream calls and changed no personal configuration.
+
+The test audit consolidated seven duplicate or implementation-detail cases and added a focused HTTP → adapter → child-process RPC notes-save journey. It checks readback, original-Page retries, conflicts and private journal/log behavior. Only the external Codex service is simulated. Corrupting the simulated readback made the new test fail; the restored fixture passes. Distinct permission, filesystem, protocol and uncertain-write contracts remain covered.
 
 ## Observed live behavior
 
@@ -23,8 +25,6 @@ Superwhisper MCP listing and a selected recording read were verified separately.
 ChatGPT Meetings tools were available and listing returned no private notes. Successful retrieval of a real note remains unverified.
 
 ## Reviews and limits
-
-Earlier independent Claude Sonnet/Opus reviews covered meeting-tool contracts, notes/transcript separation, old-journal compatibility and uncertain-write handling. Astra reviewed public packaging and authorization boundaries. Opus wrote the 0.2.0 documentation; a final Sol review caught a key-rotation runbook issue, now corrected to preserve all configuration and journal state.
 
 Live verification covers macOS with Codex CLI 0.163.0 through T3/Codex and Executor. Other client configurations are documented, not universally live-tested. Fresh-human connector eligibility, successful real Meeting fetch, long-running sign-in expiry and platforms other than macOS remain unverified. The server requires the Mac awake, the process running and callable source tools for the signed-in account.
 

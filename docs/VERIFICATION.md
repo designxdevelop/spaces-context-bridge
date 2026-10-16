@@ -10,7 +10,7 @@ How to check an install before trusting it with real notes. Use a disposable Spa
 npm run verify
 ```
 
-`npm run verify` runs the synthetic Node tests and release audit. `npm test` runs all 104 tests; `npm run test:direct` runs the 102 adapter tests without the release-audit tests. No dependency installation is required. These checks don't contact ChatGPT, Codex or Superwhisper.
+`npm run verify` runs the synthetic Node tests and release audit. `npm test` runs the full suite; `npm run test:direct` runs the adapter tests without the release-audit tests. No dependency installation is required. These checks don't contact ChatGPT, Codex or Superwhisper.
 
 ### Live acceptance
 

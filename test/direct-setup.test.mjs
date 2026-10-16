@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -301,4 +302,81 @@ test('foreground server accepts environment and CLI config overrides and rejects
   await fs.chmod(result.config.tokenFile, 0o644);
   await assert.rejects(startServer({ args: ['--config', configFile], env: {}, log: () => {} }), /unsafe_private_file/);
   await assert.rejects(startServer({ args: ['--port', '4791'], env: {}, log: () => {} }), /invalid_arguments/);
+});
+
+test('HTTP notes save round-trips through Codex RPC and retries the original Page without creating a duplicate', async t => {
+  const f = await fixture(t);
+  const traceFile = path.join(f.root, 'peer.jsonl');
+  // Only Codex is replaced: HTTP, dispatch, adapter, RPC, and the on-disk journal are real.
+  const peer = `#!${process.execPath}
+const fs = require('node:fs');
+const readline = require('node:readline');
+const crypto = require('node:crypto');
+const pages = new Map();
+const trace = ${JSON.stringify(traceFile)};
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const m = JSON.parse(line);
+  fs.appendFileSync(trace, JSON.stringify(m) + '\\n');
+  if (m.id === undefined) return;
+  let result;
+  if (m.method === 'initialize') result = {};
+  else if (m.method === 'thread/start') result = { thread: { id: 'synthetic-thread', ephemeral: true } };
+  else if (m.method === 'mcpServer/tool/call' && m.params.server === 'codex_apps') {
+    const a = m.params.arguments;
+    if (m.params.tool === 'chatgpt_space.create_page') {
+      const page = { metadata: { page_id: 'saved_notes', drive_scope: 'space', drive_space_id: a.space_id, stream_kind: 'content', deleted_at: null, access: { can_write: true } },
+        content: { page_id: 'saved_notes', title: a.title, schema_version: 1, blocks: a.initial_blocks.map((markdown, i) => ({ id: 'block_' + i, kind: 'markdown', markdown, hash: crypto.createHash('sha256').update(markdown).digest('hex') })) },
+        selection: { page_block_count: a.initial_blocks.length, selection_complete: true } };
+      pages.set('saved_notes', page); result = { structuredContent: page };
+    } else if (m.params.tool === 'chatgpt_space.read_page') result = { structuredContent: pages.get(a.page_id) };
+  }
+  if (!result) process.stdout.write(JSON.stringify({ id: m.id, error: { code: -32601, message: 'unsupported synthetic peer request' } }) + '\\n');
+  else process.stdout.write(JSON.stringify({ id: m.id, result }) + '\\n');
+});
+`;
+  await fs.writeFile(f.codex, peer, { mode: 0o700 });
+  const port = await freePort();
+  const configured = await f.run(['--port', String(port), '--allow-space', SPACE_A]);
+  const token = (await fs.readFile(configured.config.tokenFile, 'utf8')).trim();
+  const logs = [];
+  const local = await startServer({ args: [], env: f.env, home: f.home, log: message => logs.push(message) });
+  t.after(() => local.close());
+  const tools = await request(port, token, { jsonrpc: '2.0', id: 1, method: 'tools/list' });
+  const tool = tools.body.result.tools.find(tool => tool.name === 'save_meeting_notes');
+  assert.equal(tool.annotations.readOnlyHint, false);
+  const notes = '## Summary\n- Ship `v1` Friday\n\nInline ``` remains verbatim\n';
+  const args = { space_id: SPACE_A, title: 'Synthetic notes', source_id: 'synthetic:recording:notes', recorded_at: '2026-10-16T12:00:00Z', notes };
+  const call = async arguments_ => {
+    const response = await request(port, token, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool.name, arguments: arguments_ } });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.error, undefined);
+    return response.body.result.structuredContent;
+  };
+  const saved = await call(args);
+  assert.equal(saved.status, 'created');
+  assert.equal(saved.verified, true);
+  assert.equal(saved.kind, 'notes');
+  const retry = await call(args);
+  assert.equal(retry.status, 'already_saved');
+  assert.equal(retry.page_id, saved.page_id);
+  assert.equal((await call({ ...args, notes: 'changed' })).error.code, 'source_conflict');
+  assert.equal((await call({ ...args, space_id: SPACE_B })).error.code, 'space_not_allowed');
+  const messages = (await fs.readFile(traceFile, 'utf8')).trim().split('\n').map(JSON.parse);
+  const creates = messages.filter(m => m.params?.tool === 'chatgpt_space.create_page');
+  assert.equal(creates.length, 1);
+  const blocks = creates[0].params.arguments.initial_blocks;
+  assert.deepEqual(blocks.slice(0, 2), [`Recorded at: ${args.recorded_at}`, `Source ID: \`${args.source_id}\``]);
+  assert.match(blocks[2], /^Meeting notes \(saved notes\/summary, not a verbatim transcript\)/);
+  assert.equal(blocks.slice(3).map(block => block.slice(8, -4)).join(''), notes);
+  assert.ok(messages.some(m => m.params?.tool === 'chatgpt_space.read_page'));
+  assert.equal(messages.some(m => m.method === 'turn/start'), false);
+  const journalFile = path.join(configured.config.stateDir, 'saves', creates[0].params.arguments.idempotency_key + '.json');
+  assert.equal((await fs.stat(journalFile)).mode & 0o777, 0o600);
+  const journal = await fs.readFile(journalFile, 'utf8');
+  assert.equal(JSON.parse(journal).kind, 'notes');
+  assert.equal(JSON.parse(journal).notesSha256, createHash('sha256').update(notes).digest('hex'));
+  for (const secret of [notes, args.title, args.source_id, token]) {
+    assert.ok(!journal.includes(secret));
+    assert.ok(!JSON.stringify(logs).includes(secret));
+  }
 });
