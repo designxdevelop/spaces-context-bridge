@@ -37,3 +37,17 @@ test('release audit inspects the index before the first commit and all committed
     assert.ok(!result.report.findings.some(f => f.revision === 'index' || f.revision === 'working-tree'));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('release audit refuses a generated direct owner key even with an innocuous value', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-key-audit-'));
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe' });
+  try {
+    git('init', '--initial-branch=main');
+    writeFileSync(join(dir, 'owner-key'), 'synthetic-test-only');
+    git('add', 'owner-key');
+    const result = spawnSync(process.execPath, [audit], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.ok(JSON.parse(result.stdout).findings.some(f => f.path === 'owner-key' && f.rule === 'private-file'));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

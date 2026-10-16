@@ -1,10 +1,46 @@
-# Set up with your chosen agent or MCP host
+# Set up with your agent
 
-Copy [the setup prompt](../prompts/SETUP_AGENT_PROMPT.txt) into the agent you want to perform setup. Fill the choices at the top, or let it ask for missing choices. Use an existing bridge endpoint, explicitly select Cloudflare, or name another backend host. Keep credentials out of the prompt.
+If you'd rather not run the steps yourself, copy [the setup prompt](../prompts/SETUP_AGENT_PROMPT.txt) into the coding agent you want to use. Fill in the choices at the top, or let the agent ask. It sets up the direct adapter by default and only touches the cloud relay if you choose it.
 
-The workflow stays the same: **other agent → bridge → ChatGPT → actual Spaces Page → verified result**. This setup does not introduce a copied-note store.
+You still do the parts that need a human: signing in to Codex, Superwhisper, Executor or Cloudflare, entering keys into private credential forms, and choosing which Spaces are writable. The agent should never ask you to paste a key into the chat.
 
-## Four roles
+## Example: direct adapter (recommended)
+
+```text
+Checkout: https://github.com/designxdevelop/spaces-context-bridge
+Route: direct
+Agent clients on this Mac: Codex and Claude Code
+Connection: per client
+Writable Spaces: decide after listing them
+Meeting sources: Superwhisper
+```
+
+The agent checks prerequisites, runs `npm run direct:setup` for a read-only config, starts the server, connects your clients using an environment variable for the key, and checks that `bridge_direct_status` and `list_spaces` work. Once you pick Spaces, it reruns setup with `--allow-space`, restarts the server, and adds [the agent prompt](../prompts/DIRECT_AGENT_PROMPT.txt) to your standing instructions.
+
+## Example: through Executor
+
+```text
+Route: direct
+Agent clients on this Mac: T3 Code with Codex and OpenCode
+Connection: my existing Executor
+Writable Spaces: NONE for now
+Meeting sources: Superwhisper, plus ChatGPT Meetings when I ask
+```
+
+The agent adds a personal Executor connection to `http://127.0.0.1:4791/mcp` and asks you to enter the key in Executor's private credential form. It keeps the connection out of shared catalogs and leaves existing connections in place.
+
+## What counts as done (direct)
+
+- `bridge_direct_status` and `list_spaces` return real results through each client you connected, not just a saved connection.
+- `bridge_direct_status` shows the agreed allowlist. A fresh setup with none is read-only; existing permissions are preserved unless you explicitly remove them from `allowedSpaceIds` and restart.
+- The agent prompt is in each host's standing instructions.
+- Optionally, the [live acceptance checks](VERIFICATION.md#direct-adapter) pass with a disposable Space and synthetic text.
+
+## Cloud relay (optional)
+
+Pick `Route: cloud relay` only if you need requests to run while your Mac is asleep or from clients on another machine. It's asynchronous, stores payloads in your own Cloudflare D1 database, and needs a ChatGPT worker event task. The direct adapter and the cloud relay can coexist; keep the relay as a fallback if you already have it.
+
+The cloud relay has four roles:
 
 | Role | Purpose |
 | --- | --- |
@@ -13,42 +49,15 @@ The workflow stays the same: **other agent → bridge → ChatGPT → actual Spa
 | Backend | Runs the authenticated relay, durable queue, leases and signed event delivery. |
 | Processor | ChatGPT connects directly as worker, receives events and uses authorized Spaces tools. |
 
-The backend Worker relays and stores requests; the ChatGPT worker is the authorized cloud task that acts on Spaces. The cloud event route needs no local daemon. A local Superwhisper MCP connection serves selected local recordings and is a separate component.
-
-An agent/client host and a backend host are different choices. Configuring MCP in a client does not deploy a server or provide that client with direct Spaces access.
-
-## Backend choices
-
-Cloudflare Worker + D1 is the **currently implemented backend**, with local and fresh hosted OAuth/protocol evidence. The [Cloudflare quickstart](DEPLOYMENT.md) is an optional concrete deployment route. The [release review](RELEASE_REVIEW.md) records the remaining event and full-workflow gates.
-
-An existing deployment can be connected without provisioning anything. Another backend needs an adapter for runtime lifecycle, durable atomic storage and scheduled recovery, plus the same OAuth/protocol/security and workflow tests. **No alternative backend adapter is shipped yet.** The prompt inspects the chosen host and produces a scoped implementation plan rather than silently selecting Cloudflare or claiming compatibility.
-
-## Example choices
-
-Connect through an existing Executor:
+Cloudflare Worker + D1 is the only implemented backend. See [Cloudflare deployment](DEPLOYMENT.md). An existing deployment can be connected without provisioning anything. Another backend would need an adapter for runtime lifecycle, durable atomic storage and scheduled recovery, plus the same OAuth, protocol, security and workflow tests. No alternative backend adapter ships today.
 
 ```text
-REQUESTER: T3 Code and OpenCode
-CONNECTION: my existing Executor
-BACKEND: existing bridge at <HTTPS_ORIGIN>/mcp
-PROCESSOR: ChatGPT Work on web
+Route: cloud relay
+Agent clients: T3 Code and OpenCode
+Connection: my existing Executor
+Backend: existing relay at <HTTPS_ORIGIN>/mcp
+ChatGPT processor: Work on web
 Preserve my existing client entries until acceptance passes.
 ```
 
-Choose your own deployment host:
-
-```text
-REQUESTER: <my client and version>
-CONNECTION: <direct or my router>
-BACKEND: <my chosen host>
-PROCESSOR: ChatGPT Work on web
-Inspect the host first. Identify required adapters and tests. Preserve the original ChatGPT-mediated lookup/edit/save workflow.
-```
-
-Paste the full prompt after those choices. The [client examples](CLIENTS_T3_OPENCODE_EXECUTOR.md) cover version-specific configuration; the [ChatGPT processor prompt](../prompts/CHATGPT_WORKER_PROMPT.txt) defines owner scope and processing rules.
-
-## What counts as done
-
-Verify actual requester tool calls, a host-created event subscription with signed callback verification, event-triggered processing, and the three synthetic bridge round trips. Independently check each source or Page effect. Preserve request IDs on timeout and reconcile prior effects before retries.
-
-If ChatGPT exposes tools but lacks native event-task creation, report that exact blocker with the surface, version and sanitized evidence. Check current official [MCP Events requirements](https://developers.openai.com/plugins/build/mcp-events) and [event-task permissions](https://learn.chatgpt.com/docs/automations). Human sign-in, consent and any required workspace permission remain with the owner. A status call or direct Pages edit cannot substitute for the [acceptance gates](VERIFICATION.md).
+For the relay, done means actual requester tool calls, a host-created event subscription with signed callback verification, event-triggered processing, and the three synthetic round trips (lookup, edit, transcript), each independently checked. Keep request IDs on timeout and reconcile earlier effects before any retry. If ChatGPT exposes the tools but can't create the event task, report that exact blocker. Check the current [MCP Events requirements](https://developers.openai.com/plugins/build/mcp-events) and [event-task permissions](https://learn.chatgpt.com/docs/automations). A status call or a direct Pages edit can't substitute for the [cloud acceptance checks](VERIFICATION.md#cloud-relay-optional).

@@ -1,19 +1,21 @@
-# Launch post — DRAFT, NOT APPROVED FOR PUBLICATION
+# Launch post (draft)
 
-Updated October 16, 2026. The owner approved MIT / Design X Develop and public repository publication. This social post remains a draft and must not be posted without separate authorization. It describes demonstrated synthetic flows; do not invent additional interoperability or automatic sync.
+**Draft. Not approved for publication.** Don't post this without the owner's separate sign-off. Capabilities and separately tested source/destination checks are distinguished below; no real recording import has been verified end to end.
 
-## Draft
+## Post
 
-Superwhisper’s new Meetings release made me rethink Granola: I want ChatGPT Space to hold my notes, with coding agents able to request sourced context and Page edits.
+I wanted a Granola-style meeting workflow built from tools I already use. Superwhisper records on my Mac, ChatGPT Spaces holds the notes, and my coding agent can read them or file new ones.
 
-I open-sourced Spaces Context Bridge for that workflow. Synthetic lookups, bounded edits and transcript-to-Page saves now work end to end through Executor and a ChatGPT cloud event task. No local worker needed for that route.
+So I built Spaces Context Bridge, a small open-source MCP server that runs on your Mac. Ask your agent to "save my latest meeting notes in Personal Notes". It reads the recording through Superwhisper's MCP, and the bridge saves it as a Page in that Space through your signed-in Codex CLI. Reads and careful edits work the same way. In my testing, requests finished in about 2 to 11 seconds; my earlier cloud-queue version took 40 seconds to a few minutes.
 
-Deploy it to your own Cloudflare account and connect your own clients. Setup guides cover T3 Code, OpenCode and Claude; Executor is optional. No shared notes service and no automatic transcript sync. More live-client testing remains.
+You run it yourself under MIT. It's not a hosted service, and nothing syncs in the background; it saves what you ask for.
 
-## Fact check
+github.com/designxdevelop/spaces-context-bridge
 
-Superwhisper’s official changelog dates Meetings 3.0 to October 15, 2026. Its CLI/MCP announcement is dated July 16, 2026. ([Changelog](https://superwhisper.com/changelog), [CLI announcement](https://superwhisper.com/blog/cli-mcp), [OpenAI Space](https://learn.chatgpt.com/docs/space)). These product facts do not establish bridge interoperability.
+## Before posting
 
-## Publication notes
-
-“Superwhisper Notes” was the initial shorthand; official launch materials reviewed here call the feature Meetings. Use the verified name and dates above. Do not claim lower cost, better accuracy, local-only operation of the complete pipeline, or Granola feature parity. The optional companion remains a design; public users can use individual clients, while personal Executor consolidation needs its own verification. Keep private origins, Page links, owner identifiers, transcripts and credentials out of the final post.
+- Clean source installation passed with fresh local config/key and existing owner sign-in. Do not imply a fresh-account test or promise a setup time.
+- Use Superwhisper's current feature name, Meetings, not "Notes". Confirm against the [Superwhisper changelog](https://superwhisper.com/changelog) and its [CLI/MCP announcement](https://superwhisper.com/blog/cli-mcp). Keep dates out of the post.
+- The Granola comparison is framing only. Don't claim feature parity, lower cost, better accuracy or local-only processing.
+- Don't claim automatic ingestion, a fresh-user end-to-end test, or live testing of clients other than the Executor route.
+- Keep out personal names, Space or Page names other than the example, links, recordings, endpoints and screenshots containing private content.
