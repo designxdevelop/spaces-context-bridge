@@ -1,6 +1,6 @@
-# Private release review — 0.1.5
+# Release verification — 0.1.5
 
-Prepared October 16, 2026. **The original cloud event workflow has passed all three synthetic bridge round trips. This remains a private release candidate.** The original synthetic review left the personal deployment, documents and client connections unchanged. The maintainer later authorized the shared-source personal upgrade recorded below. Test origins, credentials, Page IDs and request receipts remain in protected local evidence outside this repository.
+Prepared October 16, 2026. **The original cloud event workflow has passed all three synthetic bridge round trips. This is a public, self-hosted open-source release.** The original synthetic review left the personal deployment, documents and client connections unchanged. The maintainer later authorized the shared-source personal upgrade recorded below. Test origins, credentials, Page IDs and request receipts remain in protected local evidence outside this repository.
 
 ## Verified behavior
 
@@ -44,15 +44,15 @@ After explicit owner authorization, the maintainer's personal backend was upgrad
 
 The personal backend has no active ChatGPT `request.created` subscription; that was true before and after the upgrade. Personal background processing and an Executor cutover are therefore not claimed by the deployment evidence. The earlier three-operation synthetic workflow evidence remains the isolated review route above. The shared Worker source SHA-256 is `fa6076a335c16a72c5816e5134f14a1968b52a5323c521b90f1fe4e287ebc82a`; runtime version remains 0.1.5.
 
-MIT licensing with copyright attributed to Design X Develop was approved by the owner and is now adopted in the license and package metadata. This does not approve public visibility or launch publication.
+MIT licensing with copyright attributed to Design X Develop was approved by the owner and is now adopted in the license and package metadata. The owner subsequently authorized public publication of the repository. The social launch post remains unpublished.
 
-## Remaining release gates
+## Known limits and remaining acceptance
 
 1. **Extended acceptance:** the negative date-edit probe was rejected by automatic approval before queue submission because it exceeded the exact sentence authorization. It needs explicit owner approval. Live lost-response/lease-recovery reconciliation remains unverified; local contract tests cover the mechanics. A same-key retry is not proof of interrupted external-write recovery.
-2. **Deployment experience:** the official button needs public source, so its fresh-account binding/secrets/migration flow remains untested while this repo is private. The fresh CLI test is separate evidence. Another backend still needs an adapter.
+2. **Deployment experience:** the official button uses public source, but its fresh-account binding/secrets/migration flow remains untested. The fresh CLI test is separate evidence. Another backend still needs an adapter.
 3. **Client and personal cutover:** live OpenCode, other T3 providers and Claude app/Code release workflows remain unverified. The demonstrated T3/Codex Executor review route has not yet been repeated with the personal endpoint; existing personal connections remain in place. Official Superwhisper recording extraction/selection remains untested; all transcripts used here were synthetic.
 4. **Historical transient:** an earlier hosted refresh-revocation assertion failed immediately after deployment, then passed after the same-source redeploy. Ten more cycles passed without redeployment and subsequent bootstrap runs passed. D1 read replication was disabled. Its cause remains unknown; repeat passes do not establish the cause.
-5. **Publication decisions:** finalize the private vulnerability-reporting channel, review repository/history hygiene and approve public visibility and launch copy. MIT / Design X Develop is approved. No public publication has occurred; the authorized personal backend upgrade above is complete.
+5. **Support and maintenance:** GitHub Issues is the support route; security reports use GitHub private vulnerability reporting. MIT / Design X Develop and public repository publication are owner-approved. Repository/index/history pattern scans found no secrets. The owner was informed that two GitHub-generated merge commits include account author-email metadata. The authorized personal backend upgrade is complete. The social launch draft remains unpublished.
 
 ## Review artifacts
 
