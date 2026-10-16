@@ -1,6 +1,6 @@
 # Client setup
 
-This page covers three things: connecting agents to the direct adapter (recommended), adding Superwhisper's MCP server as a meeting source, and connecting clients to the optional cloud relay.
+Connect agents to the local adapter to read and edit ChatGPT Spaces Pages. Add Superwhisper only if you want an optional meeting source.
 
 ## Direct adapter
 
@@ -8,7 +8,7 @@ The adapter listens on `http://127.0.0.1:4791/mcp` and expects `Authorization: B
 
 **Status:** the T3 Code (Codex) → Executor → adapter route has been verified live. The other configs below follow each client's documented syntax but haven't been tested live yet.
 
-Every example reads the key from an environment variable, so config files never hold it. Load the variable from the key file without echoing it. This is the default path; if you used a custom location, use the `Owner key file` path that `npm run direct:setup` printed:
+Every example reads the key from an environment variable, so config files never hold it. Load the variable from the key file without echoing it. This is the default path; if you used a custom location, use the `Owner key file` path that `npm run setup` printed:
 
 ```sh
 export SPACES_DIRECT_KEY="$(cat ~/.config/spaces-context-bridge/direct/owner-key)"
@@ -104,11 +104,9 @@ Executor is optional. It's useful if you want one connection shared by several a
 4. Executor must run on the same Mac, because the adapter only listens on loopback.
 5. If your Executor shows connection notes to agents, add a short version of [the agent prompt](../prompts/DIRECT_AGENT_PROMPT.txt) there.
 
-This key isn't related to the cloud relay's agent or worker connection codes. Don't mix them up.
-
 ### ChatGPT app
 
-ChatGPT's app connectors run in the cloud and can't reach a server on your Mac's loopback address. Use the [cloud relay](#cloud-relay-clients-optional) if you need ChatGPT itself to process requests.
+ChatGPT's app connectors run in the cloud and can't reach a server on your Mac's loopback address. This client is unsupported by the local adapter.
 
 ## Superwhisper MCP
 
@@ -142,36 +140,3 @@ For Claude Desktop, use its local MCP configuration (see [Anthropic's local-serv
 ```
 
 This is a local stdio server, separate from Spaces Context Bridge. Confirm it starts and lists its tools without reading your history. Have your agent fetch only the recordings you pick, and review the content and destination before saving. Installing it doesn't upload anything by itself. Check which meeting records your installed version supports before relying on it.
-
-## Cloud relay clients (optional)
-
-**Status:** setup instructions, not a claim of verified interoperability. Use your own HTTPS origin with `/mcp` appended. Agent and worker connections use separate high-entropy connection codes. The deployment stores their SHA-256 base64url digests as `AGENT_LOGIN_HASH` and `WORKER_LOGIN_HASH`; don't paste codes into chats or configuration files. A human must sign in and approve each connection on the correct origin.
-
-For T3 Code, OpenCode CLI and Executor with the cloud relay, see [the dedicated guide](CLIENTS_T3_OPENCODE_EXECUTOR.md#cloud-relay-optional). The ChatGPT worker always connects directly, with its separate role and event subscription.
-
-### Claude app
-
-In Customize → Connectors, add a custom remote connector with your `/mcp` URL. Select OAuth; this bridge implements dynamic registration, so choose **Register automatically** if a client identity choice is shown. Authenticate with the **agent** code and enable the connector in the conversation. Workspace administrators may need to add the connector first. Check that `bridge_status` returns `role: agent`.
-
-Follow Anthropic's [current connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). UI labels and plan access can differ. Never use the worker code in a general agent connector.
-
-### Claude Code
-
-Replace the example origin, then run from the project you want to authorize:
-
-```sh
-claude mcp add --transport http --scope local spaces-context https://bridge.example.com/mcp
-```
-
-Run `/mcp` inside Claude Code and complete browser authentication with the agent code. Local scope limits configuration to the current project; use user scope only if you deliberately want it across projects. Verify the role via `bridge_status`. See [official MCP setup](https://code.claude.com/docs/en/mcp).
-
-### ChatGPT Work Cloud worker
-
-1. In ChatGPT Plugins, add a custom MCP server at your `/mcp` endpoint with OAuth, install it, and authenticate using the **worker** code. Review the discovered tools. See [OpenAI's connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
-2. Start an authorized Work chat on the web, or Work with Cloud selected in the desktop app. Enable the bridge and the available Spaces/Meetings tools. Confirm `bridge_status` returns `role: worker`.
-3. Fill in the scope block in [the worker prompt](../prompts/CHATGPT_WORKER_PROMPT.txt). Leave writes disabled until you have named exact destinations and allowed actions. Submit the prompt and explicitly ask: "Create an event-triggered task for this bridge's `request.created` event with empty filters. Use the supplied owner scope and processing instructions. Do not add a timer." Confirm the task is saved and enabled.
-4. Confirm the server receives `events/subscribe`, verifies the signed callback, and stores the subscription. Then verify a synthetic event wakes the worker and completes a request. Follow the [acceptance checks](VERIFICATION.md#cloud-relay-optional).
-
-If the installed plugin is absent from the chat's tools, refresh its tools in plugin settings and explicitly select it in the Work chat before testing status.
-
-This follows the [MCP Events test workflow](https://developers.openai.com/plugins/build/mcp-events). `request.created` is this bridge's event name, not a built-in OpenAI event. The host supplies the callback and signing secret; don't invent either. If the account can't discover or subscribe to custom events, stop at **activation blocked**. Authentication, `tools/list`, a manually executed pending-request call, and ordinary scheduled-task support are not substitutes for event activation.

@@ -1,6 +1,6 @@
 # Security policy
 
-Spaces Context Bridge is open-source, self-hosted software for one trusted owner. Security fixes target the current release. The recommended local adapter and optional cloud relay have different trust boundaries; neither is a service operated by the maintainers.
+Spaces Context Bridge is open-source, self-hosted software for one trusted owner. Security fixes target the current release. The adapter runs locally under the owner's account; it is not a service operated by the maintainers.
 
 ## Report privately
 
@@ -8,7 +8,7 @@ Use [GitHub private vulnerability reporting](https://github.com/designxdevelop/s
 
 Use [GitHub Issues](https://github.com/designxdevelop/spaces-context-bridge/issues/new/choose) for ordinary setup questions, bugs and feature requests. Include the affected version, a synthetic reproduction, impact and redacted evidence. Test only deployments you own. There is no public bug bounty or blanket authorization to access third-party resources.
 
-## Recommended local adapter
+## Local adapter
 
 The HTTP server binds to 127.0.0.1 and authenticates an owner bearer key before starting the upstream runtime. Host and Origin checks, bounded request bodies and bounded concurrency reduce local browser and resource-abuse risks. Configuration, key and save-journal files must belong to the owner and use private filesystem permissions. Keep the key out of chat, Git, command arguments, logs and screenshots. Enter it only in the intended client's private credential field.
 
@@ -24,12 +24,6 @@ Do not expose the loopback endpoint through a public bind, tunnel or reverse pro
 
 Requests, Pages, meeting notes and transcripts are untrusted content. They cannot authorize new actions or broaden owner scope. Page edits require a fresh observed block hash and one unique literal replacement, followed by exact readback. A note/transcript save requires a selected source, explicit destination and stable source ID. Source-based idempotency and the local journal prevent ordinary duplicate retries; they are not a multi-host exactly-once guarantee.
 
-An uncertain write must be reconciled on its original route before retrying. Do not switch to the cloud relay, change source IDs or delete the journal to force a second attempt. A matching creation receipt with temporarily unavailable independent readback is reported as saved but unverified. Changed or trashed saved Pages are not recreated.
+An uncertain write must be reconciled on its original route before retrying. Do not use a different connection, change source IDs or delete the journal to force a second attempt. A matching creation receipt with temporarily unavailable independent readback is reported as saved but unverified. Changed or trashed saved Pages are not recreated.
 
 If the local key is exposed, stop the adapter and disconnect affected clients before replacing the owner key through a protected local operation. Reconnect only trusted clients and inspect authorized destinations. Preserve the journal while investigating ambiguous writes; key rotation does not undo previous Page changes.
-
-## Optional cloud relay
-
-Agent-role OAuth can submit lookups, edit requests and transcripts. Worker-role OAuth can claim queued payloads across the owner's clients and report results. All clients must belong to the same trusted owner. OAuth roles are not fine-grained Page authorization. Cloud-worker prompt allowlists are model instructions, not server-enforced Page access controls; source permissions remain essential.
-
-The cloud deployment contains sensitive plaintext payloads, results and webhook signing material in its D1 database. Protect database access and backups. For an incident, pause producers and processing, revoke affected clients/tokens/subscriptions and rotate connection codes. Rotating login hashes alone does not invalidate existing sessions. A restored database may revive credentials or work, so sanitize authorization and reconcile writes before reactivation. See [operations](docs/OPERATIONS.md).

@@ -3,7 +3,7 @@ name: Setup or usage question
 about: Ask for help with your self-hosted installation
 ---
 
-**Version, client and route (local direct / cloud relay):**
+**Version, client and Node/Codex versions:**
 
 **Setup step or workflow:**
 
@@ -11,4 +11,4 @@ about: Ask for help with your self-hosted installation
 
 **What you expected:**
 
-Use synthetic examples. Do not include credentials, transcripts, database exports, account IDs or private links. For security vulnerabilities, use SECURITY.md and private reporting.
+Use synthetic examples. Do not include credentials, transcripts, private links. For security vulnerabilities, use SECURITY.md and private reporting.

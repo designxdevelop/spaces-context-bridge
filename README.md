@@ -2,96 +2,81 @@
 
 Read and edit your ChatGPT Spaces from Claude Code, Codex, OpenCode and other MCP clients.
 
-Spaces Context Bridge is an open-source MCP server that gives your other agents access to your ChatGPT Spaces. Search and read Pages, make bounded edits, and save selected notes or transcripts as new Pages in a Space you choose. The recommended adapter runs on your Mac and uses your signed-in Codex CLI for Spaces access, even when Claude Code or another client is doing the work. Connect each client directly or share the connection through Executor.
+Spaces Context Bridge runs on your Mac and connects your agents to the Pages already in your ChatGPT Spaces. Use the same project context across agents: search for a decision, read the source, or make a bounded edit without copying text between apps.
 
-## Why it exists
+Your agent connects over MCP. The adapter calls Spaces tools through your signed-in Codex CLI and returns the result, without starting another model turn. You can connect each client directly or share one connection through Executor.
 
-My project context lives in ChatGPT Spaces, but I work with several agents. I wanted Claude and my other coding agents to consult those same Pages and update them without copying context between apps. Spaces stays the shared notebook; I can choose which agent works with it.
+## What you can do
 
-The first version sent every request through a queue to a ChatGPT cloud task, so each one took somewhere between 40 seconds and a few minutes. The direct adapter calls the same Spaces tools through the Codex CLI you're already signed in to, with no queue and no extra model turn. In testing, requests finished in seconds. See the [evidence](docs/PRODUCT.md#evidence).
+- **Find context:** list Spaces, search Pages and read their contents with source links.
+- **Edit a Page:** replace one exact span in one block, checked against a fresh read and verified afterward.
+- **Save notes:** create a Page containing selected notes or a transcript in a Space you choose, with duplicate protection for retries.
 
-## Quick start
+For example:
 
-You need macOS, Node.js 22.13 or newer, and the Codex CLI signed in with your ChatGPT account, with Spaces tools available to that account in Codex.
+> Find the launch plan in my Product Space and summarize the open decisions with source links.
+
+> In the Launch Plan Page, replace “Target date: October 20” with “Target date: October 23”. Leave everything else unchanged.
+
+## Get started
+
+You need **macOS, Node.js 22.13+, and the Codex CLI signed in with your ChatGPT account**, with Spaces tools available to that account in Codex. Codex provides the Spaces connection even when Claude Code or another client is doing the work.
 
 ```sh
 git clone https://github.com/designxdevelop/spaces-context-bridge.git
 cd spaces-context-bridge
-npm run direct:setup   # finds Codex, creates a private key and a read-only config
-npm run direct:start   # serves http://127.0.0.1:4791/mcp in the foreground
+npm run setup
+npm start
 ```
 
-Connect your agent with the key as a bearer token ([client configs](docs/CLIENTS.md#direct-adapter)). The T3 Code (Codex) → Executor route has been tested live; the other client configs are documented but not yet live-tested. Ask your agent to list your Spaces, then stop the server (Ctrl-C), allow writes to the Spaces you choose, and start it again:
+No npm dependencies are required. Setup creates a private owner key and a read-only configuration; the server listens at `http://127.0.0.1:4791/mcp`.
+
+1. [Connect your client](docs/CLIENTS.md) using the key as a bearer token. Keep it out of chat and committed configuration.
+2. Ask your agent to list your Spaces. Reads work immediately if the source tools are available.
+3. Stop the server, allow writes to the Spaces you choose, then restart:
 
 ```sh
-npm run direct:setup -- --allow-space page_space_EXAMPLE
-npm run direct:start
+npm run setup -- --allow-space page_space_EXAMPLE
+npm start
 ```
 
-Once connected, ask your agent:
+`--allow-space` adds permissions; rerunning setup preserves existing permissions, the key and save journal. See [the setup guide](docs/DIRECT_SETUP.md) for configuration and removing permissions, or [set up with your agent](docs/SETUP_WITH_AGENT.md).
 
-> Find the launch plan in my Product Space and summarize the open decisions with source links.
+## Clients
 
-Or request a bounded edit:
+[Client setup](docs/CLIENTS.md) includes Claude Code, Codex and OpenCode configuration. [T3 Code and Executor](docs/CLIENTS_T3_OPENCODE_EXECUTOR.md) covers sharing the connection across providers.
 
-> In the Launch Plan Page, replace “Target date: October 20” with “Target date: October 23”. Leave everything else unchanged.
-
-[Direct setup](docs/DIRECT_SETUP.md) covers each step in detail. If you'd rather have your agent do the setup, use the [setup prompt](docs/SETUP_WITH_AGENT.md).
-
-## What it does
-
-- **Read.** List Spaces, list and search Pages, read a Page.
-- **Edit.** Replace one exact span of text in one block of a Page, checked against a fresh read and verified afterward.
-- **Save.** Create a Page with meeting notes or a transcript, verbatim, with a stable source ID so a retry doesn't create a duplicate.
-
-It won't delete, share, publish, move or message anything. It won't write to a Space you haven't allowed, sync recordings in the background, or forward arbitrary tool calls.
-
-## Optional: meeting notes
-
-You can also use Spaces as a home for meeting notes. Connect Superwhisper's separate MCP server, then ask your agent to save selected notes or a transcript into a named Space. Superwhisper is optional; reading and editing existing Spaces Pages needs no recording app.
-
-[The agent prompt](prompts/DIRECT_AGENT_PROMPT.txt) configures Superwhisper as the default meeting source and ChatGPT Meetings as an additional source when requested. ChatGPT Meetings list and fetch tools are included; fetching a real Meeting note remains unverified. Imports are on demand, with no automatic recording sync. See [meeting setup](docs/DIRECT_SETUP.md#meeting-sources).
+The T3 Code (Codex) → Executor → adapter path has been tested live. Other client configurations are documented but have not been tested live. Clients must run on the same Mac as the adapter; cloud app connectors cannot reach its loopback address.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  A["Claude Code / Codex / OpenCode / T3 Code"] -->|recommended| D["Direct adapter<br/>127.0.0.1:4791"]
-  SW["Superwhisper MCP<br/>optional meeting source"] -.-> A
-  D --> C["Codex CLI<br/>your sign-in"]
-  C --> S["ChatGPT Spaces Pages"]
-  A -.->|optional, async| W["Cloud relay<br/>Cloudflare Worker + D1"]
-  W -.-> T["ChatGPT worker task"]
-  T -.-> S
+  A["Claude Code / Codex / OpenCode / T3 Code"] -->|MCP| B["Spaces Context Bridge<br/>on your Mac"]
+  B --> C["Codex CLI<br/>your sign-in"]
+  C --> D["ChatGPT Spaces Pages"]
 ```
 
-Your agent decides what to do and calls the adapter's tools. The adapter makes a fixed set of Codex tool calls (six Spaces Page operations plus ChatGPT Meetings list and fetch), checks the results and returns them. It never starts a model turn of its own.
+The adapter exposes a fixed set of tools and performs no model inference of its own. Observed reads and writes completed in seconds; timings are observations, not guarantees. The Mac must stay awake with the server running and Codex signed in. See [architecture and limits](docs/PRODUCT.md) and [test evidence](docs/RELEASE_REVIEW.md).
 
-## Privacy
+## Optional: meeting notes
 
-Spaces Pages live at OpenAI. When your agent reads a Page, its content is returned to that agent and its model provider; edits and saves go through the local adapter and Codex back to Spaces. Optional meeting imports also send the selected recording text to your agent's provider and OpenAI. The adapter keeps only IDs, hashes and status in a local journal, and its logs contain short categories, not content. It relies on Codex's own sign-in and doesn't extract those credentials. Details are in [operations](docs/OPERATIONS.md#direct-adapter) and the [security policy](SECURITY.md).
+Spaces access works without a recording app. If you use Superwhisper, connect its separate MCP server and ask your agent to save selected notes or transcripts into a named Space. ChatGPT Meetings list/fetch tools are also included when requested; fetching a real Meeting note remains unverified.
 
-## Optional cloud route — slow, asynchronous
+[Meeting setup](docs/DIRECT_SETUP.md#optional-meeting-sources) and [the agent prompt](prompts/DIRECT_AGENT_PROMPT.txt) cover source selection, citations and safe retries. Imports happen when requested; automatic recording sync is not included.
 
-**The cloud route is much slower: observed requests took roughly 40 seconds to a few minutes, versus seconds on the direct adapter. Use the direct adapter for interactive reads and edits.** These are observations, not latency guarantees.
+## Privacy and permissions
 
-The cloud route is optional for remote clients or Spaces requests that need to run while your Mac is asleep. A Cloudflare Worker and D1 database queue requests for a ChatGPT cloud task to process. The wait includes that task's scheduling and processing, not just an MCP server call. Reading local Superwhisper recordings still needs your Mac. This route also takes more setup and stores request payloads, including transcripts, in your own D1 database.
+Pages live at OpenAI. Your agent and its model provider see the content you ask it to handle; edits and saves go through Codex back to Spaces. Meeting imports also send selected text to those providers. This is not local-only processing.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/designxdevelop/spaces-context-bridge)
+The adapter stores IDs, hashes and status in a private journal, without note text. Reads cover accessible current Space Pages; writes require an explicit Space allowlist. It has no delete, share, publish, move or messaging tools. Uncertain writes must be reconciled before retrying.
 
-The button deploys into your own Cloudflare account. The CLI deployment has been verified on fresh resources; the full browser-button flow hasn't yet. Then:
+See [security](SECURITY.md) for trust boundaries and private reporting, and [operations](docs/OPERATIONS.md) for backup, upgrade, key rotation and uninstall instructions. Each installation uses its owner's accounts and storage; there is no service operated by the maintainers. Your ChatGPT and agent-provider terms and usage charges apply.
 
-1. Follow [Cloudflare deployment](docs/DEPLOYMENT.md).
-2. Connect your agent and the ChatGPT worker with [client setup](docs/CLIENTS.md#cloud-relay-clients-optional).
-3. Set the owner scope in the [worker prompt](prompts/CHATGPT_WORKER_PROMPT.txt) and activate its `request.created` task.
-4. Run the [acceptance checks](docs/VERIFICATION.md#cloud-relay-optional) with synthetic text before using real transcripts.
+## Support and development
 
-## Project status
+Use [GitHub Issues](https://github.com/designxdevelop/spaces-context-bridge/issues/new/choose) for setup questions, bugs and feature requests. Include versions and a synthetic reproduction, without keys, recordings or private links. Report vulnerabilities through [GitHub private reporting](https://github.com/designxdevelop/spaces-context-bridge/security/advisories/new).
 
-MIT licensed, copyright 2026 Design X Develop. See [LICENSE](LICENSE). Every installation runs under its owner's accounts. The [product notes](docs/PRODUCT.md) cover how it works, what has been tested, and what hasn't. Spaces Context Bridge is independent of OpenAI, Anthropic, Superwhisper, Granola and Cloudflare.
+Run `npm run verify` for automated tests and the release-hygiene scan. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Support
-
-Use [GitHub Issues](https://github.com/designxdevelop/spaces-context-bridge/issues/new/choose) for setup questions, bugs and feature requests. Include the version, client, setup step and a synthetic reproduction. Leave out keys, transcripts, notes and private links.
-
-Report security vulnerabilities through [GitHub private vulnerability reporting](https://github.com/designxdevelop/spaces-context-bridge/security/advisories/new). See [SECURITY.md](SECURITY.md).
+MIT licensed, copyright 2026 Design X Develop. See [LICENSE](LICENSE). Independent of OpenAI, Anthropic and Superwhisper.

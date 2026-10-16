@@ -2,87 +2,48 @@ Set up Spaces Context Bridge for me.
 
 CHOICES (use answers I've already given; ask only for what's missing)
 Checkout: [repo URL or local path]
-Route: [direct (recommended) / cloud relay / both]
 Agent clients on this Mac: [Codex / Claude Code / OpenCode / T3 Code provider / other]
 Connection: [per client / my existing Executor]
 Writable Spaces: [Space names, NONE, or "decide after listing"]
-Meeting sources: [Superwhisper (default) / also ChatGPT Meetings]
-Cloud relay only: Backend [existing relay URL / Cloudflare / named alternative host]; ChatGPT processor [Work on web / desktop Work with Cloud]; owner-approved read sources, editable Pages and transcript destination Spaces [exact scope or NONE]
+Meeting sources: [NONE / Superwhisper (default when connected) / ChatGPT Meetings only when requested]
 
 OUTCOME
-My agents can read my ChatGPT Spaces Pages, make bounded edits, and save meeting notes or transcripts I select into a Space I name. The default route is the local direct adapter: an MCP server on this Mac at http://127.0.0.1:4791/mcp that calls a fixed set of Spaces and Meetings tools through my signed-in Codex CLI. Superwhisper's own MCP server is the default meeting source. Don't build a copied-note store, cache or mirror.
+My agents can read my ChatGPT Spaces Pages, make bounded edits, and save meeting notes or transcripts I select into a Space I name. The runtime is the local adapter: an MCP server on this Mac at http://127.0.0.1:4791/mcp that calls a fixed set of Spaces and Meetings tools through my signed-in Codex CLI. Meeting sources are optional. When connected, Superwhisper's own MCP server is the default meeting source; use ChatGPT Meetings only when I request it. Don't build a copied-note store, cache or mirror.
 
 OPERATING RULES
-- I do every human sign-in and consent myself: Codex, Superwhisper, Executor, Cloudflare and ChatGPT.
+- I do every human sign-in and consent myself: Codex, Superwhisper, Executor and ChatGPT.
 - Never ask me to paste a key, code or token into chat. Never print, echo or log a secret, or put one in a command argument, shared config or committed file. Refer to secret files by path only.
-- Preserve existing setups. Merge one entry rather than replacing a config file. Don't remove existing MCP connections, the cloud relay, or any credentials, even after the new route works. Tell me what could be removed and let me decide.
+- Preserve existing setups. Merge one entry rather than replacing a config file. Don't remove existing MCP connections or credentials, even after setup works. Tell me what could be removed and let me decide.
 - Never expose the direct adapter beyond 127.0.0.1: no tunnels, public ports or remote hosts. Don't install a background service unless I ask.
 - Don't send real recordings or notes through tests. Use a disposable Space and Page and synthetic text.
 - Complete reversible setup autonomously within this scope. Ask only for a missing decision or an approval outside it.
 
-DIRECT ROUTE (default)
+LOCAL SETUP
 D1. CHECK PREREQUISITES
 Read README.md, docs/DIRECT_SETUP.md, docs/CLIENTS.md (Direct adapter and Superwhisper sections) and prompts/DIRECT_AGENT_PROMPT.txt. Confirm macOS, Node.js 22.13 or newer, and that the Codex CLI is installed. If Codex isn't signed in, ask me to run codex login myself. Inspect each chosen client's version and config location.
 
 D2. INSTALL AND CONFIGURE (READ-ONLY FIRST)
-Run npm run direct:setup. The direct runtime needs no npm dependencies; npm ci is only for development or the cloud relay. Inspect the existing non-secret config first: setup preserves its write allowlist. If codex isn't on PATH, add -- --codex-bin <absolute path>. Report the file locations setup printed. Don't open, print or copy the key file's contents.
+Run npm run setup. The package has no npm dependencies; npm ci is not required. Inspect the existing non-secret config first: setup preserves its write allowlist. If codex isn't on PATH, add -- --codex-bin <absolute path>. Report the file locations setup printed. Don't open, print or copy the key file's contents.
 
 D3. START THE SERVER
-Run npm run direct:start in the foreground, in a terminal I can see. It must listen only on 127.0.0.1:4791.
+Run npm start in the foreground, in a terminal I can see. It must listen only on 127.0.0.1:4791.
 
 D4. CONNECT CLIENTS
 Per client: use the version-matched config from docs/CLIENTS.md#direct-adapter with an environment-variable reference (SPACES_DIRECT_KEY) for the Authorization header, never a literal key. Show me the one command that loads the variable from the key file path without echoing it.
-Through Executor: add a personal (user-owned) remote MCP connection, streamable HTTP, to http://127.0.0.1:4791/mcp with bearer or header auth. Ask me to enter the key in Executor's private credential form. Don't add it to a shared or organization catalog. Executor must run on this Mac. This key is unrelated to the cloud relay's agent and worker codes.
+Through Executor: add a personal (user-owned) remote MCP connection, streamable HTTP, to http://127.0.0.1:4791/mcp with bearer or header auth. Ask me to enter the key in Executor's private credential form. Don't add it to a shared or organization catalog. Executor must run on this Mac.
 ChatGPT app connectors can't reach the loopback adapter; don't try.
 
 D5. VERIFY READ ACCESS
 Through each intended route, call bridge_direct_status (with check_upstream: true) and list_spaces. Report the actual responses: tool availability, allowlist and Space names, with no Page content. A saved connection isn't a verified call.
 
 D6. ENABLE WRITES (ONLY FOR SPACES I NAME)
-After I choose Spaces, review existing write permissions with me. The --allow-space flag is additive: rerun npm run direct:setup -- --allow-space <id> once per Space to add. Rerunning without flags does not remove permissions. For explicitly approved removals (including NONE on an existing setup), edit allowedSpaceIds in the protected config and preserve all other settings. Restart the server and confirm bridge_direct_status shows the agreed full allowlist. A fresh setup with NONE stays read-only.
+After I choose Spaces, review existing write permissions with me. The --allow-space flag is additive: rerun npm run setup -- --allow-space <id> once per Space to add. Rerunning without flags does not remove permissions. For explicitly approved removals (including NONE on an existing setup), edit allowedSpaceIds in the protected config and preserve all other settings. Restart the server and confirm bridge_direct_status shows the agreed full allowlist. A fresh setup with NONE stays read-only.
 
 D7. STANDING INSTRUCTIONS
-Merge prompts/DIRECT_AGENT_PROMPT.txt into each host's persistent instructions (for example AGENTS.md, CLAUDE.md, OpenCode rules, or Executor connection notes). Keep its Superwhisper default source, direct destination, ChatGPT Meetings-on-request, cloud fallback and write-boundary rules intact. If a cloud relay is connected, keep it as the documented fallback.
+Merge prompts/DIRECT_AGENT_PROMPT.txt into each host's persistent instructions (for example AGENTS.md, CLAUDE.md, OpenCode rules, or Executor connection notes). Keep its Spaces read/edit workflow, optional Superwhisper default source, ChatGPT Meetings-on-request, citation, retry and write-boundary rules intact.
 
 D8. OPTIONAL ACCEPTANCE
 If I approve a disposable Space, run the live checks in docs/VERIFICATION.md#direct-adapter: read, refused write outside the allowlist, one bounded edit with independent readback, a synthetic transcript save with readback and an identical retry returning the same Page, and a synthetic notes save. Never replay an uncertain write. Repeat the identical call or read the destination first.
 
-CLOUD RELAY ROUTE (only if I chose it)
-The cloud relay is the original asynchronous route: Cloudflare Worker + D1 queues requests and a ChatGPT worker event task processes them. It can coexist with the direct adapter as a fallback. Keep this workflow intact: other agent → relay → ChatGPT → actual Spaces Page → verified result. The relay holds requests and results; it has no direct Spaces access.
-
-C1. INSPECT AND CHOOSE A PATH
-Read docs/DEPLOYMENT.md, the cloud sections of docs/CLIENTS.md and docs/CLIENTS_T3_OPENCODE_EXECUTOR.md, prompts/CHATGPT_WORKER_PROMPT.txt and docs/RELEASE_REVIEW.md. Inspect the chosen client's actual version, environment/config directory and available tools. Distinguish:
-- requester: agent-role client that submits work;
-- router: optional Executor or other MCP host that forwards agent calls;
-- backend: the durable authenticated relay server;
-- processor: ChatGPT's direct worker-role connection and event task.
-An MCP client/router alone does not host the backend or gain Spaces access.
-The shipped backend currently uses Cloudflare Worker + D1. Cloudflare is an option, not my presumed choice. An alternative host needs an implementation adapter and its own tests; a setup prompt does not make the existing source portable.
-
-Existing endpoint: inspect /health and OAuth discovery; deploy nothing.
-Cloudflare selected: use the documented isolated setup/deploy flow and pinned tools, with unique resource names, explicit account selection, migrations and protected secrets. Preserve any existing personal deployment.
-Other backend selected: inspect its documented runtime, storage and background-task support. Produce a concrete adapter plan. Implement only within my authorized scope; otherwise obtain approval for that plan. Preserve HTTPS MCP, OAuth/PKCE and consent, separate roles, durable atomic queue/leases/idempotency, signed webhook verification/delivery, recovery/cleanup, backups and safe diagnostics. Never present an unimplemented or untested adapter as supported. Do not silently fall back to Cloudflare.
-
-C2. CONNECT REQUESTERS
-Use the client's current official setup and this repository's version-matched examples. Reuse existing connections. For a router, discover its schemas and use per-user agent OAuth; a saved connection or OAuth redirect is not a verified call.
-Have me finish OAuth on the correct origin using the AGENT code privately. Call bridge_status through each intended route; verify role=agent and record the response. Discover the five agent tools. Agent access must not expose worker claim/completion tools. Keep the WORKER code and grant out of requesters and routers.
-
-C3. ACTIVATE CHATGPT PROCESSING
-Connect ChatGPT directly to the backend with the separate WORKER code; I complete sign-in and consent. Confirm the selected review/owner connector's actual bridge_status returns role=worker. Fill the owner-scope block in prompts/CHATGPT_WORKER_PROMPT.txt using only my authorized sources/actions. Unspecified scope stays NONE. Keep its processing, reconciliation and verification rules intact.
-Ask in the supported Work chat:
-“Create an event-triggered task for this selected bridge. Whenever request.created occurs, claim and process the request within the owner scope above, then complete it with verified sources or an edit/save receipt. Use empty filters and the host's native event subscription; no time schedule.”
-The host must supply the callback and signing secret. Never invent or manually seed them. Confirm server/discover and events/list, actual events/subscribe, signed callback verification and a stored subscription. bridge_status worker_connected=true is readiness, not proof of processing.
-If tools/events changed, rescan the plugin and follow official reconnect/new-conversation guidance. If host task creation is absent, check the supported Work surface and the workspace's event-triggered-task permission. Report the exact missing capability and diagnostics; do not change policy or reinstall/re-consent blindly.
-A timer, manual pending_requests call, direct Pages operation or fabricated subscription cannot prove event activation. Do not silently replace the event task with polling.
-
-C4. VERIFY THE CLOUD WORKFLOW
-Use disposable Pages/Space and synthetic text with an explicit bounded owner scope. Submit through the actual chosen requester/router, retrieve each original request ID with get_result, and independently inspect the resulting Pages:
-- lookup: return a unique synthetic fact and its real source;
-- edit: change one authorized sentence on the exact Page, preserving other text;
-- ingest: save a synthetic transcript in the authorized Space with a stable source_id/key; retry identically and verify one Page;
-- boundaries: refuse an out-of-scope edit and another client's result access;
-- recovery: reconcile a lost/expired attempt before repeating any external write.
-Source inspection can use independent Pages tools, but the tested operation must originate through the bridge. A queued ID, webhook 2xx or unverified completion is not success. Polling get_result for an existing request is allowed; never submit a fresh key after a timeout.
-
 REPORT
-Lead with each route's state: verified / blocked / not run. Then list sanitized client and runtime versions, changed config entries (by file and entry name, never secret values), file locations from setup, the allowlist, and each check's result. For the cloud relay, include activation state and each operation's result. Keep personal paths, Page links and source links out of shared docs. Name remaining blockers and the smallest human action needed. Leave all publication and public-release decisions to me.
+Report verified / blocked / not run for each client. List sanitized client and runtime versions, changed config entries (file and entry name, never secrets), setup file locations, the full allowlist and each check result. Keep personal paths, Page links and source links out of shared docs. State remaining blockers and the smallest human action needed. Leave publication and public-release decisions to me.

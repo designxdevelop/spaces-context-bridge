@@ -6,7 +6,7 @@
 
 I wanted a Granola-style meeting workflow built from tools I already use. Superwhisper records on my Mac, ChatGPT Spaces holds the notes, and my coding agent can read them or file new ones.
 
-So I built Spaces Context Bridge, a small open-source MCP server that runs on your Mac. Ask your agent to "save my latest meeting notes in Personal Notes". It reads the recording through Superwhisper's MCP, and the bridge saves it as a Page in that Space through your signed-in Codex CLI. Reads and careful edits work the same way. In my testing, requests finished in about 2 to 11 seconds; my earlier cloud-queue version took 40 seconds to a few minutes.
+So I built Spaces Context Bridge, a small open-source MCP server that runs on your Mac. Ask your agent to "save my latest meeting notes in Personal Notes". It reads the recording through Superwhisper's MCP, and the bridge saves it as a Page in that Space through your signed-in Codex CLI. Reads and careful edits work the same way. In my testing, reads and writes finished in about 2 to 11 seconds.
 
 You run it yourself under MIT. It's not a hosted service, and nothing syncs in the background; it saves what you ask for.
 

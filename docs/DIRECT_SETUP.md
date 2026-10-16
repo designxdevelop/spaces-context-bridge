@@ -1,6 +1,6 @@
 # Direct setup
 
-The direct adapter is the recommended way to run Spaces Context Bridge. It's a small MCP server on your Mac at `http://127.0.0.1:4791/mcp`. Your agent calls it, and it reads and writes ChatGPT Spaces Pages through the Codex CLI you're already signed in to. There's no queue, no extra model turn, and no cloud copy of your notes.
+The direct adapter runs Spaces Context Bridge locally. It's a small MCP server on your Mac at `http://127.0.0.1:4791/mcp`. Your agent calls it, and it reads and writes ChatGPT Spaces Pages through the Codex CLI you're already signed in to. It supports reading and bounded editing of existing Pages, plus saving selected meeting notes or transcripts.
 
 ## What you need
 
@@ -18,12 +18,12 @@ git clone https://github.com/designxdevelop/spaces-context-bridge.git
 cd spaces-context-bridge
 ```
 
-The direct adapter uses Node built-ins and your installed Codex CLI; `npm ci` is only needed for development checks or the cloud relay.
+The package has no npm dependencies. It uses Node built-ins and your installed Codex CLI; no `npm ci` step is required. `npm run setup` and `npm start` are the canonical commands; `npm run direct:setup` and `npm run direct:start` remain compatibility aliases.
 
 ## 2. Create a private, read-only config
 
 ```sh
-npm run direct:setup
+npm run setup
 ```
 
 Setup finds your Codex CLI, then creates three owner-only items and prints their paths (never the key itself):
@@ -35,20 +35,20 @@ Setup finds your Codex CLI, then creates three owner-only items and prints their
 └── state/        the save journal: IDs, hashes and status, no note text
 ```
 
-The location follows `XDG_CONFIG_HOME` if you set it. To put the config somewhere else, run `npm run direct:setup -- --config /absolute/path/config.json` and `npm run direct:start -- --config /absolute/path/config.json`, or set `BRIDGE_DIRECT_CONFIG`.
+The location follows `XDG_CONFIG_HOME` if you set it. To put the config somewhere else, run `npm run setup -- --config /absolute/path/config.json` and `npm start -- --config /absolute/path/config.json`, or set `BRIDGE_DIRECT_CONFIG`.
 
 A newly created config is read-only. Rerunning setup preserves any existing write allowlist. Your agent can read every Space you have access to, but it can't write anywhere until you allow a Space in step 5.
 
 If `codex` isn't on your `PATH`, or you want a specific install, pass its absolute path:
 
 ```sh
-npm run direct:setup -- --codex-bin /absolute/path/to/codex
+npm run setup -- --codex-bin /absolute/path/to/codex
 ```
 
 ## 3. Start the server
 
 ```sh
-npm run direct:start
+npm start
 ```
 
 The server runs in the foreground on `127.0.0.1:4791`. Leave that terminal open and press Ctrl-C to stop it. Setup doesn't install a background service; if you want one, set it up with your own process manager.
@@ -90,8 +90,8 @@ Ask your agent:
 Copy the IDs (`page_space_…`) of the Spaces you want it to write to. Run setup again with one `--allow-space` per Space, then stop the server (Ctrl-C) and start it again:
 
 ```sh
-npm run direct:setup -- --allow-space page_space_EXAMPLE --allow-space page_space_EXAMPLE2
-npm run direct:start
+npm run setup -- --allow-space page_space_EXAMPLE --allow-space page_space_EXAMPLE2
+npm start
 ```
 
 `--allow-space` adds to the existing allowlist, and rerunning setup without it leaves the allowlist alone. To remove a Space, delete its ID from `allowedSpaceIds` in `config.json` and restart. Rerunning setup never replaces your key.
@@ -100,17 +100,17 @@ Ask your agent to call `bridge_direct_status` and check that `allowedSpaceIds` m
 
 ## 6. Give your agent standing instructions
 
-Paste [the agent prompt](../prompts/DIRECT_AGENT_PROMPT.txt) into your host's persistent instructions, such as `AGENTS.md`, `CLAUDE.md`, OpenCode rules, or Executor connection notes. It makes Superwhisper the default meeting source, makes the adapter the destination, and spells out the write boundary.
+Paste [the agent prompt](../prompts/DIRECT_AGENT_PROMPT.txt) into your host's persistent instructions, such as `AGENTS.md`, `CLAUDE.md`, OpenCode rules, or Executor connection notes. It defines the Spaces read/edit workflow and write boundary. If you connect a meeting source, Superwhisper is the default and ChatGPT Meetings is used only on request.
 
 Now you can ask in plain language, without naming tools:
 
-> Save my latest meeting notes in Personal Notes.
+> Find the project plan in my Work Space and read its next steps.
 
-The agent finds the recording in Superwhisper, reads its notes, and saves them as a new Page in that Space.
+The agent finds and reads the current Page. You can then request a bounded edit. With a meeting source connected, you can also ask “Save my latest meeting notes in Personal Notes.”
 
-## Meeting sources
+## Optional meeting sources
 
-**Superwhisper (default).** Superwhisper records on your Mac and runs its own MCP server, separate from this adapter. The adapter doesn't record anything or proxy Superwhisper. Install the Superwhisper CLI using the [vendor's instructions](https://superwhisper.com/cli) and add `superwhisper mcp` to your client ([example](CLIENTS.md#superwhisper-mcp)). Your agent lists or searches meetings, then reads the one you meant with `read_meeting`: transcript off for notes, on for the raw transcript. Raw transcripts often come back as timestamped segments.
+**Superwhisper (default when connected).** Superwhisper records on your Mac and runs its own MCP server, separate from this adapter. The adapter doesn't record anything or proxy Superwhisper. Install the Superwhisper CLI using the [vendor's instructions](https://superwhisper.com/cli) and add `superwhisper mcp` to your client ([example](CLIENTS.md#superwhisper-mcp)). Your agent lists or searches meetings, then reads the one you meant with `read_meeting`: transcript off for notes, on for the raw transcript. Raw transcripts often come back as timestamped segments.
 
 **ChatGPT Meetings (when you ask for it).** Say "from ChatGPT Meetings" and the agent uses the adapter's `meetings_find_all` and `meetings_fetch` to read private Meeting notes from your signed-in account. You can save them into a Space like any other notes. That creates a regular Page, not a native Meetings recording.
 
@@ -153,8 +153,7 @@ Each tool maps to fixed Codex tools: six `chatgpt_space` Page operations, plus `
 - Something not working: [troubleshooting](OPERATIONS.md#troubleshooting).
 - Backups, upgrades and uninstalling: [operations](OPERATIONS.md#direct-adapter).
 - Checking your install: [verification](VERIFICATION.md#direct-adapter).
-- Need a route that works while your Mac is asleep? The [cloud relay](../README.md#optional-cloud-relay) is still available as an asynchronous fallback.
 
 ## Versions
 
-The project release is 0.2.0. The direct adapter reports its component version, 0.1.1, in MCP initialization and status; the unchanged cloud relay runtime reports 0.1.5.
+The project release is 0.3.0. The adapter reports its separate, unchanged component version, 0.1.1, in MCP initialization and status.
